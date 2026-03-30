@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPMP Temperature Probability — Pompano Weather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0a0e14;
+    --panel:     #111820;
+    --border:    #1e2a38;
+    --header-bg: #0d1520;
+    --muted:     #4a6080;
+    --text:      #c8d8e8;
+    --accent:    #38aaff;
+    --weekend:   #1a2030;
+
+    /* Heat scale */
+    --c0:  #1a2535;   /* <40%  */
+    --c1:  #2d3f55;   /* 40-49 */
+    --c2:  #7a2020;   /* 50-59 */
+    --c3:  #a83030;   /* 60-69 */
+    --c4:  #cc1a1a;   /* 70-79 */
+    --c5:  #e00000;   /* 80-89 */
+    --c6:  #ff0000;   /* ≥90%  */
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 40px;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    max-width: 900px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, #38aaff 0%, #005fa3 100%);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+
+  .brand-text h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .brand-text p {
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  #status {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  #status .dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #555;
+    margin-right: 5px;
+    vertical-align: middle;
+    transition: background 0.4s;
+  }
+  #status.live .dot { background: #00e676; box-shadow: 0 0 6px #00e676; }
+  #status.error .dot { background: #ff4444; }
+
+  /* ── Data source note ── */
+  .source-note {
+    width: 100%;
+    max-width: 900px;
+    background: #0d1a27;
+    border: 1px solid #1a3050;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 0.72rem;
+    color: #5588aa;
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+  .source-note strong { color: #80aacc; }
+
+  /* ── Table wrapper ── */
+  .table-wrap {
+    width: 100%;
+    max-width: 900px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 620px;
+  }
+
+  /* ── Column headers ── */
+  thead tr th {
+    background: var(--header-bg);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #aac4dc;
+    padding: 11px 10px 9px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  thead tr th:first-child {
+    text-align: left;
+    padding-left: 16px;
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+
+  thead .day-num {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-bottom: 1px;
+  }
+
+  thead .day-name {
+    display: block;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ddeeff;
+    line-height: 1;
+  }
+
+  thead .day-date {
+    display: block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  thead th.weekend { background: var(--weekend); }
+
+  /* ── Body rows ── */
+  tbody tr { transition: filter 0.15s; }
+  tbody tr:hover { filter: brightness(1.12); }
+
+  tbody td {
+    border: 1px solid rgba(255,255,255,0.04);
+    padding: 0;
+    text-align: center;
+    height: 44px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background 0.4s;
+  }
+
+  tbody td:first-child {
+    text-align: left;
+    padding: 0 14px 0 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: #88aacc;
+    background: var(--panel) !important;
+    white-space: nowrap;
+    border-right: 1px solid var(--border);
+    letter-spacing: 0;
+  }
+
+  /* Probability color tiers */
+  .p-none  { background: var(--c0); color: #4a6080; }
+  .p-low   { background: var(--c1); color: #7a9ab8; }
+  .p-med1  { background: var(--c2); color: #ffbbbb; }
+  .p-med2  { background: var(--c3); color: #ffd0d0; }
+  .p-hi1   { background: var(--c4); color: #fff; }
+  .p-hi2   { background: var(--c5); color: #fff; }
+  .p-max   { background: var(--c6); color: #fff; text-shadow: 0 0 8px rgba(255,80,80,0.6); }
+
+  /* ── Legend ── */
+  .legend {
+    width: 100%;
+    max-width: 900px;
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .legend-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    color: #9ab8cc;
+  }
+
+  .legend-swatch {
+    width: 28px; height: 16px;
+    border-radius: 3px;
+  }
+
+  /* ── Loading / Error states ── */
+  #loading {
+    margin-top: 60px;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid #1e3050;
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 0 auto 14px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #error-msg {
+    display: none;
+    margin-top: 20px;
+    background: #1a0808;
+    border: 1px solid #5a1010;
+    border-radius: 8px;
+    padding: 14px 20px;
+    color: #ff8888;
+    font-size: 0.85rem;
+    max-width: 600px;
+    text-align: left;
+    line-height: 1.6;
+  }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 28px;
+    font-size: 0.68rem;
+    color: #2a4060;
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  footer a { color: #3a6090; text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">🌡️</div>
+    <div class="brand-text">
+      <h1>KPMP Temp Probability</h1>
+      <p>Pompano Beach · NBM Ensemble · 7-Day</p>
+    </div>
+  </div>
+  <div id="status">
+    <span class="dot"></span><span id="status-text">Loading…</span><br>
+    <span id="updated-time"></span>
+  </div>
+</header>
+
+<div class="source-note">
+  <strong>Data source:</strong> NWS National Blend of Models (NBM) via Open-Meteo API — provides
+  probabilistic temperature percentiles (p10/p25/p50/p75/p90) from which exceedance probabilities
+  are estimated using a normal distribution fit. <em>Not a true multi-model ensemble count</em>;
+  values reflect NBM spread. Refreshes every 15 minutes.
+</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  Fetching NBM forecast data…
+</div>
+
+<div id="error-msg"></div>
+
+<div class="table-wrap" id="tableContainer" style="display:none">
+  <table id="probTable">
+    <thead><tr id="headerRow"></tr></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<div class="legend" id="legend" style="display:none">
+  <span class="legend-label">Probability:</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:var(--c0)"></span>&lt;40%</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:var(--c1)"></span>40–49%</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:var(--c2)"></span>50–59%</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:var(--c3)"></span>60–69%</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:var(--c4)"></span>70–79%</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:var(--c5)"></span>80–89%</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:var(--c6)"></span>≥90%</span>
+</div>
+
+<footer>
+  <a href="https://pompanoweather.com" target="_blank">PompanoWeather.com</a> ·
+  Data: <a href="https://open-meteo.com" target="_blank">Open-Meteo (NBM)</a> ·
+  <a href="https://howpomp.github.io" target="_blank">GitHub</a>
+</footer>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const LAT         = 26.247;
+const LON         = -80.111;
+const THRESHOLDS  = [89, 86, 83, 80, 77, 74, 71, 68];
+const REFRESH_MS  = 15 * 60 * 1000;
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+// Normal CDF approximation (Hart 1968 rational)
+function normalCDF(x) {
+  const a1=0.254829592, a2=-0.284496736, a3=1.421413741;
+  const a4=-1.453152027, a5=1.061405429, p=0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x) / Math.SQRT2;
+  const t = 1 / (1 + p * x);
+  const y = 1 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return 0.5 * (1 + sign * y);
+}
+
+/**
+ * Given p10/p50/p90 for a day, estimate P(maxTemp ≥ threshold).
+ * We fit a normal to the p10/p90 spread: sigma ≈ (p90-p10)/2.563
+ * and use p50 as the mean.
+ */
+function exceedanceProb(p10, p50, p90, threshold) {
+  if (p90 <= p10) return p50 >= threshold ? 100 : 0;
+  const sigma = (p90 - p10) / (2 * 1.2816); // 1.2816 = z-score for 90th pct
+  const mu    = p50;
+  const prob  = 1 - normalCDF((threshold - mu) / sigma);
+  return Math.round(Math.max(0, Math.min(100, prob * 100)));
+}
+
+// Cell CSS class by probability value
+function probClass(p) {
+  if (p >= 90) return 'p-max';
+  if (p >= 80) return 'p-hi2';
+  if (p >= 70) return 'p-hi1';
+  if (p >= 60) return 'p-med2';
+  if (p >= 50) return 'p-med1';
+  if (p >= 40) return 'p-low';
+  return 'p-none';
+}
+
+// YYYY-MM-DD → "Mon", "Tue", etc.
+function dayName(dateStr) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {weekday:'short'});
+}
+
+// YYYY-MM-DD → "MM/DD"
+function shortDate(dateStr) {
+  const [, m, d] = dateStr.split('-');
+  return `${m}/${d}`;
+}
+
+function isWeekend(dateStr) {
+  const dow = new Date(dateStr + 'T12:00:00').getDay();
+  return dow === 0 || dow === 6;
+}
+
+// ── Data fetch ───────────────────────────────────────────────────────────────
+
+async function fetchNBMData() {
+  // Open-Meteo NBM endpoint: daily temperature percentiles
+  const vars = [
+    'temperature_2m_max',
+    'temperature_2m_min',
+  ].join(',');
+
+  // Hourly percentile vars for spread estimation
+  const hourlyVars = [
+    'temperature_2m',
+  ].join(',');
+
+  // Use the NBM model via Open-Meteo
+  // temperature_2m_max p10/p50/p90 available on ensemble endpoint
+  const url = new URL('https://ensemble-api.open-meteo.com/v1/ensemble');
+  url.searchParams.set('latitude',  LAT);
+  url.searchParams.set('longitude', LON);
+  url.searchParams.set('temperature_unit', 'fahrenheit');
+  url.searchParams.set('wind_speed_unit', 'mph');
+  url.searchParams.set('forecast_days', '7');
+  url.searchParams.set('models', 'gfs_seamless,ecmwf_ifs04,icon_seamless,gem_seamless');
+  url.searchParams.set('hourly', 'temperature_2m');
+  url.searchParams.set('timezone', 'America/New_York');
+
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`Open-Meteo ensemble HTTP ${res.status}`);
+  return await res.json();
+}
+
+// ── Process ensemble into daily max percentiles ───────────────────────────────
+
+function processEnsemble(data) {
+  // data.hourly keys: time, temperature_2m_gfs_seamless, temperature_2m_ecmwf_ifs04, etc.
+  const times = data.hourly.time; // array of "YYYY-MM-DDTHH:MM"
+
+  // Collect all model temp arrays
+  const modelKeys = Object.keys(data.hourly).filter(k =>
+    k.startsWith('temperature_2m_') && k !== 'temperature_2m'
+  );
+
+  if (modelKeys.length === 0) {
+    throw new Error('No ensemble member data returned from Open-Meteo.');
+  }
+
+  // Group by date → collect all member values for each hour
+  const byDate = {};
+  times.forEach((t, i) => {
+    const date = t.split('T')[0];
+    const hour = parseInt(t.split('T')[1]);
+    // Only use daytime hours for "high temp" (10am-8pm local)
+    if (hour < 10 || hour > 20) return;
+    if (!byDate[date]) byDate[date] = [];
+    modelKeys.forEach(k => {
+      const v = data.hourly[k][i];
+      if (v !== null && v !== undefined) byDate[date].push(v);
+    });
+  });
+
+  // For each date, find daily max from each member → percentiles
+  // Since we flattened hourly×members, approximate as distribution of daily maxes
+  const days = Object.keys(byDate).sort().slice(0, 7);
+
+  return days.map(date => {
+    const vals = byDate[date].sort((a, b) => a - b);
+    if (vals.length === 0) return { date, p10: null, p50: null, p90: null };
+
+    const pct = (p) => {
+      const idx = (p / 100) * (vals.length - 1);
+      const lo  = Math.floor(idx), hi = Math.ceil(idx);
+      return vals[lo] + (vals[hi] - vals[lo]) * (idx - lo);
+    };
+
+    return {
+      date,
+      p10: pct(10),
+      p50: pct(50),
+      p90: pct(90),
+      memberCount: modelKeys.length
+    };
+  });
+}
+
+// ── Build table ───────────────────────────────────────────────────────────────
+
+function buildTable(days) {
+  const headerRow = document.getElementById('headerRow');
+  const tbody     = document.getElementById('tableBody');
+
+  // Header
+  headerRow.innerHTML = '<th>Threshold</th>';
+  days.forEach((d, i) => {
+    const wknd = isWeekend(d.date) ? ' weekend' : '';
+    headerRow.innerHTML += `
+      <th class="${wknd}">
+        <span class="day-num">Day ${i+1}</span>
+        <span class="day-name">${dayName(d.date)}</span>
+        <span class="day-date">${shortDate(d.date)}</span>
+      </th>`;
+  });
+
+  // Rows
+  tbody.innerHTML = '';
+  THRESHOLDS.forEach(thresh => {
+    let row = `<tr><td>≥ ${thresh}°F</td>`;
+    days.forEach(d => {
+      if (d.p50 === null) {
+        row += `<td class="p-none">—</td>`;
+      } else {
+        const p = exceedanceProb(d.p10, d.p50, d.p90, thresh);
+        row += `<td class="${probClass(p)}">${p}%</td>`;
+      }
+    });
+    row += '</tr>';
+    tbody.innerHTML += row;
+  });
+}
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+
+function setStatus(state, text, time = '') {
+  const el = document.getElementById('status');
+  el.className = state;
+  document.getElementById('status-text').textContent = text;
+  document.getElementById('updated-time').textContent = time;
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.style.display = 'block';
+  el.innerHTML = `<strong>⚠ Data fetch failed</strong><br>${msg}<br><br>
+    Will retry on next refresh cycle. Check browser console for details.`;
+  setStatus('error', 'Fetch failed');
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  document.getElementById('error-msg').style.display = 'none';
+  setStatus('', 'Loading…');
+
+  try {
+    const raw  = await fetchNBMData();
+    const days = processEnsemble(raw);
+
+    buildTable(days);
+
+    document.getElementById('loading').style.display       = 'none';
+    document.getElementById('tableContainer').style.display = '';
+    document.getElementById('legend').style.display         = 'flex';
+
+    const now = new Date().toLocaleString('en-US', {
+      month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZoneName:'short'
+    });
+    setStatus('live', `Live · ${days[0]?.memberCount ?? '?'} ensemble members`, `Updated ${now}`);
+
+  } catch (err) {
+    console.error('[KPMP Prob Table]', err);
+    document.getElementById('loading').style.display = 'none';
+    showError(err.message || 'Unknown error');
+  }
+}
+
+init();
+setInterval(init, REFRESH_MS);
+</script>
+</body>
+</html>
