@@ -511,48 +511,87 @@ function processData(data) {
 
   if (!tempKeys.length) throw new Error('No ensemble temperature data returned.');
 
+  // KEY FIX: For each member key × each date, track hourly values separately
+  // so we can take the MAX (for highs) and MIN (for lows) per member per day,
+  // then build the ensemble distribution from those per-member extremes.
+  // Flattening all hourly values across members dilutes the tails and biases
+  // the median toward mid-day average temps rather than the actual daily extreme.
+
+  // Structure: byDate[date][memberKey] = { dayVals:[], nightVals:[], dewVals:[] }
   const byDate = {};
+  // Also accumulate precip sums per member per day
+  const precipByDate = {}; // precipByDate[date][memberKey] = sum
+
   times.forEach((t, i) => {
     const date = t.split('T')[0];
     const hour = parseInt(t.split('T')[1]);
-    if (!byDate[date]) byDate[date] = {day:[], night:[], dew:[], precip:{}};
+    if (!byDate[date]) byDate[date] = {};
+    if (!precipByDate[date]) precipByDate[date] = {};
 
-    // Daytime 10am–8pm → high temps (converted to °F)
+    // Daytime 10am–8pm → candidate hours for daily high
     if (hour >= 10 && hour <= 20) {
-      tempKeys.forEach(k => { const v=getTemp(k,i); if(v!=null) byDate[date].day.push(v); });
-      // Dew point: afternoon peak (noon–8pm) for worst-case humidity
+      tempKeys.forEach(k => {
+        const v = getTemp(k, i);
+        if (v == null) return;
+        if (!byDate[date][k]) byDate[date][k] = {dayVals:[], nightVals:[], dewVals:[]};
+        byDate[date][k].dayVals.push(v);
+      });
+      // Dew point: noon–8pm for afternoon peak humidity
       if (hour >= 12) {
-        dewKeys.forEach(k => { const v=getTemp(k,i); if(v!=null) byDate[date].dew.push(v); });
+        dewKeys.forEach(k => {
+          const v = getTemp(k, i);
+          if (v == null) return;
+          // Map dew key to same member slot as temp key (same model suffix)
+          const suffix = k.replace('dewpoint_2m_','');
+          const tKey = 'temperature_2m_' + suffix;
+          if (!byDate[date][tKey]) byDate[date][tKey] = {dayVals:[], nightVals:[], dewVals:[]};
+          byDate[date][tKey].dewVals.push(v);
+        });
       }
     }
-    // Overnight for low temps (converted to °F)
+    // Overnight: 8pm–9am → candidate hours for daily low
     if (hour <= 9 || hour >= 20) {
-      tempKeys.forEach(k => { const v=getTemp(k,i); if(v!=null) byDate[date].night.push(v); });
+      tempKeys.forEach(k => {
+        const v = getTemp(k, i);
+        if (v == null) return;
+        if (!byDate[date][k]) byDate[date][k] = {dayVals:[], nightVals:[], dewVals:[]};
+        byDate[date][k].nightVals.push(v);
+      });
     }
-    // Precip: full day sum per member (already in inches — no conversion needed)
+    // Precip: accumulate full-day sum per member
     precipKeys.forEach(k => {
       const v = data.hourly[k][i];
-      if (v != null) byDate[date].precip[k] = (byDate[date].precip[k]||0) + v;
+      if (v != null) precipByDate[date][k] = (precipByDate[date][k] || 0) + v;
     });
   });
 
-  const days = Object.keys(byDate).sort().slice(0,7);
+  // Now reduce each member to its daily extreme, then build ensemble distribution
+  const dates = Object.keys(byDate).sort().slice(0, 7);
   return {
     memberCount: tempKeys.length,
     unitLabel: needsConvert ? 'C→F converted' : '°F native',
-    days: days.map(date => {
-      const d = byDate[date];
-      const precipArr = Object.values(d.precip).sort((a,b)=>a-b);
+    days: dates.map(date => {
+      const members = byDate[date];
+
+      // Per-member daily max (high), min (low), max dew point
+      const dailyMaxArr = [], dailyMinArr = [], dailyDewArr = [];
+      Object.values(members).forEach(m => {
+        if (m.dayVals.length)   dailyMaxArr.push(Math.max(...m.dayVals));
+        if (m.nightVals.length) dailyMinArr.push(Math.min(...m.nightVals));
+        if (m.dewVals.length)   dailyDewArr.push(Math.max(...m.dewVals));
+      });
+
+      const precipArr = Object.values(precipByDate[date] || {}).sort((a,b)=>a-b);
+
       return {
         date,
-        maxP10: pctile(d.day,10),   maxP50: pctile(d.day,50),   maxP90: pctile(d.day,90),
-        minP10: pctile(d.night,10), minP50: pctile(d.night,50), minP90: pctile(d.night,90),
-        dewP10: pctile(d.dew,10),   dewP50: pctile(d.dew,50),   dewP90: pctile(d.dew,90),
+        maxP10: pctile(dailyMaxArr, 10), maxP50: pctile(dailyMaxArr, 50), maxP90: pctile(dailyMaxArr, 90),
+        minP10: pctile(dailyMinArr, 10), minP50: pctile(dailyMinArr, 50), minP90: pctile(dailyMinArr, 90),
+        dewP10: pctile(dailyDewArr, 10), dewP50: pctile(dailyDewArr, 50), dewP90: pctile(dailyDewArr, 90),
         precipArr,
-        // Pre-compute PoP and threshold probs
         precipProbs: PRECIP_THRESHOLDS.map(thresh =>
           precipArr.length
-            ? Math.round(precipArr.filter(v=>v>=thresh).length / precipArr.length * 100)
+            ? Math.round(precipArr.filter(v => v >= thresh).length / precipArr.length * 100)
             : null
         ),
       };
@@ -693,10 +732,31 @@ async function init() {
       document.getElementById(id).textContent=mLabel
     );
 
+    // Build model run timestamp from API metadata if available
+    let runInfo = '';
+    try {
+      // Open-Meteo returns model_run_time or similar in some responses
+      const modelTimes = raw.hourly?.time?.[0] ?? '';
+      // Use the first forecast hour as a proxy for data vintage
+      // Also check for any run metadata fields
+      const genTime = raw.generationtime_ms
+        ? `Generated in ${(raw.generationtime_ms/1000).toFixed(1)}s`
+        : '';
+      // Show which models were actually returned
+      const returnedModels = Object.keys(raw.hourly)
+        .filter(k => k.startsWith('temperature_2m_'))
+        .map(k => k.replace('temperature_2m_','').replace('_seamless','').replace('_ifs04','').toUpperCase())
+        .join(', ');
+      runInfo = returnedModels ? ` · ${returnedModels}` : '';
+    } catch(e) {}
+
     const now = new Date().toLocaleString('en-US',{
       month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'
     });
-    setStatus('live',`Live · ${memberCount} ensemble members · ${unitLabel}`,`Updated ${now}`);
+    setStatus('live',
+      `Live · ${memberCount} ensemble members · ${unitLabel}`,
+      `Updated ${now}${runInfo}`
+    );
 
   } catch(err) {
     console.error('[KPMP Prob]', err);
