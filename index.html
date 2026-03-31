@@ -17,21 +17,40 @@
     --accent:    #38aaff;
     --weekend:   #131d2a;
 
+    /* ── 17-tier probability scale (shared structure, per-variable hues) ──
+       p0=0%  p1=1-10  p2=11-19  p3=20-29  p4=30-39
+       p5=40-44  p6=45-49  p7=50-54  p8=55-59  p9=60-64  p10=65-69
+       p11=70-74  p12=75-79  p13=80-84  p14=85-89  p15=90-94  p16=95-100 */
+
     /* Red — high temp */
-    --hr0:#1a2535; --hr1:#2d3f55; --hr2:#7a2020;
-    --hr3:#a83030; --hr4:#cc1a1a; --hr5:#e00000; --hr6:#ff0000;
+    --hr0:#0f1820; --hr1:#1e2d3d; --hr2:#2a3a50; --hr3:#3a3020; --hr4:#5a3010;
+    --hr5:#6a2020; --hr6:#882020; --hr7:#aa2828; --hr8:#cc2020;
+    --hr9:#dd1a10; --hr10:#ee1000; --hr11:#ff1a00; --hr12:#ff3300;
+    --hr13:#ff4400; --hr14:#ff5500; --hr15:#ff6600; --hr16:#ff8800;
 
     /* Blue — low temp */
-    --hb0:#1a2535; --hb1:#1a3560; --hb2:#1a5090;
-    --hb3:#1060b8; --hb4:#0070d8; --hb5:#0088ff; --hb6:#40aaff;
+    --hb0:#0f1820; --hb1:#141e2e; --hb2:#182438; --hb3:#1a2e50; --hb4:#1a3868;
+    --hb5:#1a4080; --hb6:#1a4e98; --hb7:#1858b0; --hb8:#1060c0;
+    --hb9:#0868d0; --hb10:#0070e0; --hb11:#0880f0; --hb12:#1090ff;
+    --hb13:#28a0ff; --hb14:#40b0ff; --hb15:#58c0ff; --hb16:#80d8ff;
 
-    /* Purple/magenta — dew point */
-    --hd0:#1a1a2a; --hd1:#2d1a50; --hd2:#501a80;
-    --hd3:#7a20a8; --hd4:#a030cc; --hd5:#c040e0; --hd6:#e060ff;
+    /* Purple — dew point */
+    --hd0:#0f0f1e; --hd1:#181828; --hd2:#201835; --hd3:#2a1848; --hd4:#381860;
+    --hd5:#481878; --hd6:#601890; --hd7:#7820a8; --hd8:#9020b8;
+    --hd9:#a828cc; --hd10:#b830d8; --hd11:#c840e0; --hd12:#d850e8;
+    --hd13:#e060f0; --hd14:#e870f4; --hd15:#f080f8; --hd16:#ff98ff;
 
     /* Teal — precip */
-    --hg0:#1a2535; --hg1:#1a3530; --hg2:#155a40;
-    --hg3:#0e7a50; --hg4:#08a060; --hg5:#00c070; --hg6:#00e080;
+    --hg0:#0f1820; --hg1:#101e1a; --hg2:#102818; --hg3:#103818; --hg4:#0e4820;
+    --hg5:#0c5828; --hg6:#0a6830; --hg7:#087840; --hg8:#068850;
+    --hg9:#049860; --hg10:#02a870; --hg11:#00b880; --hg12:#00c890;
+    --hg13:#00d8a0; --hg14:#00e0b0; --hg15:#00e8c0; --hg16:#00ffd0;
+
+    /* Amber/gold → orange → red — wind gusts */
+    --hw0:#0f1820; --hw1:#1a1a10; --hw2:#282010; --hw3:#3a2c08; --hw4:#503808;
+    --hw5:#664400; --hw6:#805000; --hw7:#9a6000; --hw8:#b07000;
+    --hw9:#c48000; --hw10:#d89000; --hw11:#e8a000; --hw12:#f0aa00;
+    --hw13:#f08000; --hw14:#e86000; --hw15:#e04000; --hw16:#d82000;
   }
 
   *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -104,6 +123,7 @@
   .icon-min  { background:#082040; }
   .icon-dew  { background:#1a0838; }
   .icon-rain { background:#081a14; }
+  .icon-wind { background:#2a1e00; }
 
   .section-title {
     font-family:'Rajdhani',sans-serif; font-size:1.05rem;
@@ -113,6 +133,7 @@
   .section-title.blue   { color:#60aaff; }
   .section-title.purple { color:#cc88ff; }
   .section-title.teal   { color:#40d090; }
+  .section-title.amber  { color:#ffcc44; }
 
   .section-sub {
     font-size:0.68rem; color:var(--muted);
@@ -183,26 +204,97 @@
     letter-spacing:0;
   }
 
-  /* Red */
-  .r0{background:var(--hr0);color:#3a5570;} .r1{background:var(--hr1);color:#7a9ab8;}
-  .r2{background:var(--hr2);color:#ffbbbb;} .r3{background:var(--hr3);color:#ffd0d0;}
-  .r4{background:var(--hr4);color:#fff;}    .r5{background:var(--hr5);color:#fff;}
-  .r6{background:var(--hr6);color:#fff;text-shadow:0 0 8px rgba(255,80,80,.6);}
-  /* Blue */
-  .b0{background:var(--hb0);color:#3a5570;} .b1{background:var(--hb1);color:#99bbdd;}
-  .b2{background:var(--hb2);color:#c0d8f0;} .b3{background:var(--hb3);color:#ddeeff;}
-  .b4{background:var(--hb4);color:#fff;}    .b5{background:var(--hb5);color:#fff;}
-  .b6{background:var(--hb6);color:#fff;text-shadow:0 0 8px rgba(80,180,255,.6);}
-  /* Purple */
-  .d0{background:var(--hd0);color:#3a3060;} .d1{background:var(--hd1);color:#aa88cc;}
-  .d2{background:var(--hd2);color:#cc99ee;} .d3{background:var(--hd3);color:#eeccff;}
-  .d4{background:var(--hd4);color:#fff;}    .d5{background:var(--hd5);color:#fff;}
-  .d6{background:var(--hd6);color:#fff;text-shadow:0 0 10px rgba(220,100,255,.7);}
-  /* Teal */
-  .g0{background:var(--hg0);color:#3a5570;} .g1{background:var(--hg1);color:#90c8b0;}
-  .g2{background:var(--hg2);color:#b0ddc8;} .g3{background:var(--hg3);color:#d0f0e0;}
-  .g4{background:var(--hg4);color:#fff;}    .g5{background:var(--hg5);color:#fff;}
-  .g6{background:var(--hg6);color:#fff;text-shadow:0 0 8px rgba(0,220,120,.5);}
+  /* ── 17-tier color classes ── */
+  /* Red (r) */
+  .r0 {background:var(--hr0);color:#2a4060;}
+  .r1 {background:var(--hr1);color:#4a6888;}
+  .r2 {background:var(--hr2);color:#6888a8;}
+  .r3 {background:var(--hr3);color:#c8a060;}
+  .r4 {background:var(--hr4);color:#e8c080;}
+  .r5 {background:var(--hr5);color:#ffddaa;}
+  .r6 {background:var(--hr6);color:#ffd0b0;}
+  .r7 {background:var(--hr7);color:#ffd8c0;}
+  .r8 {background:var(--hr8);color:#fff;}
+  .r9 {background:var(--hr9);color:#fff;}
+  .r10{background:var(--hr10);color:#fff;}
+  .r11{background:var(--hr11);color:#fff;}
+  .r12{background:var(--hr12);color:#fff;}
+  .r13{background:var(--hr13);color:#fff;}
+  .r14{background:var(--hr14);color:#fff;}
+  .r15{background:var(--hr15);color:#fff;}
+  .r16{background:var(--hr16);color:#fff;text-shadow:0 0 8px rgba(255,100,0,.5);}
+  /* Blue (b) */
+  .b0 {background:var(--hb0);color:#2a4060;}
+  .b1 {background:var(--hb1);color:#3a5070;}
+  .b2 {background:var(--hb2);color:#4a6888;}
+  .b3 {background:var(--hb3);color:#7898c0;}
+  .b4 {background:var(--hb4);color:#98b8d8;}
+  .b5 {background:var(--hb5);color:#b0cce8;}
+  .b6 {background:var(--hb6);color:#c8ddf0;}
+  .b7 {background:var(--hb7);color:#d8eaf8;}
+  .b8 {background:var(--hb8);color:#e8f2ff;}
+  .b9 {background:var(--hb9);color:#fff;}
+  .b10{background:var(--hb10);color:#fff;}
+  .b11{background:var(--hb11);color:#fff;}
+  .b12{background:var(--hb12);color:#fff;}
+  .b13{background:var(--hb13);color:#fff;}
+  .b14{background:var(--hb14);color:#fff;}
+  .b15{background:var(--hb15);color:#fff;}
+  .b16{background:var(--hb16);color:#fff;text-shadow:0 0 8px rgba(80,200,255,.5);}
+  /* Purple (d) */
+  .d0 {background:var(--hd0);color:#2a2848;}
+  .d1 {background:var(--hd1);color:#383858;}
+  .d2 {background:var(--hd2);color:#484870;}
+  .d3 {background:var(--hd3);color:#6858a0;}
+  .d4 {background:var(--hd4);color:#8870b8;}
+  .d5 {background:var(--hd5);color:#a888cc;}
+  .d6 {background:var(--hd6);color:#c0a0e0;}
+  .d7 {background:var(--hd7);color:#d0b8ee;}
+  .d8 {background:var(--hd8);color:#e0c8f8;}
+  .d9 {background:var(--hd9);color:#fff;}
+  .d10{background:var(--hd10);color:#fff;}
+  .d11{background:var(--hd11);color:#fff;}
+  .d12{background:var(--hd12);color:#fff;}
+  .d13{background:var(--hd13);color:#fff;}
+  .d14{background:var(--hd14);color:#fff;}
+  .d15{background:var(--hd15);color:#fff;}
+  .d16{background:var(--hd16);color:#fff;text-shadow:0 0 10px rgba(220,80,255,.6);}
+  /* Teal (g) */
+  .g0 {background:var(--hg0);color:#2a4060;}
+  .g1 {background:var(--hg1);color:#304840;}
+  .g2 {background:var(--hg2);color:#386050;}
+  .g3 {background:var(--hg3);color:#407860;}
+  .g4 {background:var(--hg4);color:#509070;}
+  .g5 {background:var(--hg5);color:#70b090;}
+  .g6 {background:var(--hg6);color:#90c8a8;}
+  .g7 {background:var(--hg7);color:#b0d8c0;}
+  .g8 {background:var(--hg8);color:#c8e8d8;}
+  .g9 {background:var(--hg9);color:#fff;}
+  .g10{background:var(--hg10);color:#fff;}
+  .g11{background:var(--hg11);color:#fff;}
+  .g12{background:var(--hg12);color:#fff;}
+  .g13{background:var(--hg13);color:#fff;}
+  .g14{background:var(--hg14);color:#fff;}
+  .g15{background:var(--hg15);color:#fff;}
+  .g16{background:var(--hg16);color:#fff;text-shadow:0 0 8px rgba(0,240,180,.5);}
+  /* Amber→red (w) — wind gusts */
+  .w0 {background:var(--hw0);color:#2a4060;}
+  .w1 {background:var(--hw1);color:#404030;}
+  .w2 {background:var(--hw2);color:#585030;}
+  .w3 {background:var(--hw3);color:#806040;}
+  .w4 {background:var(--hw4);color:#a07840;}
+  .w5 {background:var(--hw5);color:#c09050;}
+  .w6 {background:var(--hw6);color:#d0a050;}
+  .w7 {background:var(--hw7);color:#e0b060;}
+  .w8 {background:var(--hw8);color:#f0c070;}
+  .w9 {background:var(--hw9);color:#fff;}
+  .w10{background:var(--hw10);color:#fff;}
+  .w11{background:var(--hw11);color:#fff;}
+  .w12{background:var(--hw12);color:#fff;}
+  .w13{background:var(--hw13);color:#fff;}
+  .w14{background:var(--hw14);color:#fff;}
+  .w15{background:var(--hw15);color:#fff;}
+  .w16{background:var(--hw16);color:#fff;text-shadow:0 0 8px rgba(255,50,0,.6);}
 
   /* ── Legend ── */
   .legend {
@@ -260,8 +352,8 @@
 <div class="source-note">
   <strong>Data:</strong> Open-Meteo ensemble API (GFS, ECMWF, ICON, GEM) ·
   Probabilities from ensemble spread via normal CDF fit to p10/p50/p90.
-  High: ≥75–100°F · Low: ≤60–85°F · Dew point: ≥60–78°F · Precip: PoP + ¼" thresholds.
-  All in 2°F / ¼" increments. Refreshes every 15 min.
+  High: ≥75–100°F · Low: ≤60–85°F · Dew point: ≥60–78°F · Precip: PoP + ¼" thresholds · Wind gusts: ≥15–40 mph.
+  2°F / ¼" / 5 mph increments · 17-tier color scale · Refreshes every 15 min.
 </div>
 
 <div id="loading"><div class="spinner"></div>Fetching ensemble forecast data…</div>
@@ -282,13 +374,17 @@
   </div>
   <div class="legend">
     <span class="legend-label">Probability:</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr0)"></span>&lt;40%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr1)"></span>40–49%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr2)"></span>50–59%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr3)"></span>60–69%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr4)"></span>70–79%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr5)"></span>80–89%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr6)"></span>≥90%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr0)"></span>0%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr1)"></span>1–10%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr2)"></span>11–19%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr3)"></span>20–29%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr4)"></span>30–39%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr6)"></span>40–49%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr8)"></span>50–59%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr10)"></span>60–69%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr12)"></span>70–79%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr14)"></span>80–89%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hr16)"></span>≥90%</span>
   </div>
 </div>
 
@@ -308,13 +404,17 @@
   </div>
   <div class="legend">
     <span class="legend-label">Probability:</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb0)"></span>&lt;40%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb1)"></span>40–49%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb2)"></span>50–59%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb3)"></span>60–69%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb4)"></span>70–79%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb5)"></span>80–89%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb6)"></span>≥90%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb0)"></span>0%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb1)"></span>1–10%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb2)"></span>11–19%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb3)"></span>20–29%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb4)"></span>30–39%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb6)"></span>40–49%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb8)"></span>50–59%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb10)"></span>60–69%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb12)"></span>70–79%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb14)"></span>80–89%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hb16)"></span>≥90%</span>
   </div>
 </div>
 
@@ -333,13 +433,17 @@
   </div>
   <div class="legend">
     <span class="legend-label">Probability:</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd0)"></span>&lt;40%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd1)"></span>40–49%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd2)"></span>50–59%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd3)"></span>60–69%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd4)"></span>70–79%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd5)"></span>80–89%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd6)"></span>≥90%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd0)"></span>0%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd1)"></span>1–10%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd2)"></span>11–19%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd3)"></span>20–29%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd4)"></span>30–39%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd6)"></span>40–49%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd8)"></span>50–59%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd10)"></span>60–69%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd12)"></span>70–79%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd14)"></span>80–89%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd16)"></span>≥90%</span>
     <span style="font-size:0.65rem;color:var(--muted);margin-left:6px">· ≥70°F = muggy · ≥75°F = oppressive</span>
   </div>
 </div>
@@ -357,15 +461,48 @@
       <tbody id="bodyRain"></tbody>
     </table>
   </div>
+  <div class="legend" id="legendRain">
+    <span class="legend-label">Probability:</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg0)"></span>0%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg1)"></span>1–10%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg2)"></span>11–19%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg3)"></span>20–29%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg4)"></span>30–39%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg6)"></span>40–49%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg8)"></span>50–59%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg10)"></span>60–69%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg12)"></span>70–79%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg14)"></span>80–89%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg16)"></span>≥90%</span>
+  </div>
+</div>
+
+<!-- WIND GUSTS -->
+<div class="section" id="sec-wind" style="display:none">
+  <div class="section-header">
+    <div class="section-icon icon-wind">💨</div>
+    <span class="section-title amber">Wind Gust Exceedance</span>
+    <span class="section-sub" id="wind-members"></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr id="headerWind"><th>Threshold</th></tr></thead>
+      <tbody id="bodyWind"></tbody>
+    </table>
+  </div>
   <div class="legend">
     <span class="legend-label">Probability:</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg0)"></span>&lt;40%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg1)"></span>40–49%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg2)"></span>50–59%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg3)"></span>60–69%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg4)"></span>70–79%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg5)"></span>80–89%</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:var(--hg6)"></span>≥90%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw0)"></span>0%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw1)"></span>1–10%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw2)"></span>11–19%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw3)"></span>20–29%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw4)"></span>30–39%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw6)"></span>40–49%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw8)"></span>50–59%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw10)"></span>60–69%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw12)"></span>70–79%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw14)"></span>80–89%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hw16)"></span>≥90%</span>
   </div>
 </div>
 
@@ -389,6 +526,9 @@ const DEW_THRESHOLDS = range(78, 60, -2);
 
 // Precip: PoP (0.01") + quarter-inch exceedance thresholds
 const PRECIP_THRESHOLDS = [0.01, 0.25, 0.50, 0.75, 1.00, 1.50, 2.00];
+
+// Wind gusts: ≥15 to ≥40 mph in 5 mph steps
+const GUST_THRESHOLDS = [15, 20, 25, 30, 35, 40];
 
 function range(start, stop, step) {
   const out = [];
@@ -445,13 +585,34 @@ function pctile(arr, p) {
   return s[lo] + (s[hi]-s[lo])*(idx-lo);
 }
 
-// ── Color classes ─────────────────────────────────────────────────────────────
-const tier = (p, pfx) =>
-  p>=90?pfx+'6':p>=80?pfx+'5':p>=70?pfx+'4':p>=60?pfx+'3':p>=50?pfx+'2':p>=40?pfx+'1':pfx+'0';
-const rc = p => tier(p,'r');
-const bc = p => tier(p,'b');
-const dc = p => tier(p,'d');
-const gc = p => tier(p,'g');
+// ── 17-tier color classifier ──────────────────────────────────────────────────
+// Tiers: 0%=p0, 1-10=p1, 11-19=p2, 20-29=p3, 30-39=p4,
+//        40-44=p5, 45-49=p6, 50-54=p7, 55-59=p8, 60-64=p9, 65-69=p10,
+//        70-74=p11, 75-79=p12, 80-84=p13, 85-89=p14, 90-94=p15, 95-100=p16
+function probTier(p) {
+  if (p === 0)   return 0;
+  if (p <= 10)   return 1;
+  if (p <= 19)   return 2;
+  if (p <= 29)   return 3;
+  if (p <= 39)   return 4;
+  if (p <= 44)   return 5;
+  if (p <= 49)   return 6;
+  if (p <= 54)   return 7;
+  if (p <= 59)   return 8;
+  if (p <= 64)   return 9;
+  if (p <= 69)   return 10;
+  if (p <= 74)   return 11;
+  if (p <= 79)   return 12;
+  if (p <= 84)   return 13;
+  if (p <= 89)   return 14;
+  if (p <= 94)   return 15;
+  return 16;
+}
+const rc = p => 'r' + probTier(p);
+const bc = p => 'b' + probTier(p);
+const dc = p => 'd' + probTier(p);
+const gc = p => 'g' + probTier(p);
+const wc = p => 'w' + probTier(p);
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 const dayName  = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
@@ -469,7 +630,7 @@ async function fetchEnsemble() {
   url.searchParams.set('precipitation_unit', 'inch');
   url.searchParams.set('forecast_days', '7');
   url.searchParams.set('models', 'gfs_seamless,ecmwf_ifs04,icon_seamless,gem_seamless');
-  url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,dewpoint_2m_max,precipitation_sum');
+  url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,dewpoint_2m_max,precipitation_sum,wind_gusts_10m_max');
   url.searchParams.set('timezone', 'America/New_York');
   const res = await fetch(url.toString(), {signal: AbortSignal.timeout(25000)});
   if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
@@ -508,6 +669,7 @@ function processData(data) {
   const minKeys    = Object.keys(data.daily).filter(k => k.startsWith('temperature_2m_min_'));
   const dewKeys    = Object.keys(data.daily).filter(k => k.startsWith('dewpoint_2m_max_'));
   const precipKeys = Object.keys(data.daily).filter(k => k.startsWith('precipitation_sum_'));
+  const gustKeys   = Object.keys(data.daily).filter(k => k.startsWith('wind_gusts_10m_max_'));
 
   if (!maxKeys.length) throw new Error('No ensemble temperature_2m_max data returned.');
 
@@ -528,6 +690,13 @@ function processData(data) {
   // Precip stays as-is (inches)
   precipKeys.forEach(k => { converted[k] = data.daily[k]; });
 
+  // Wind gusts: Open-Meteo returns km/h regardless of wind_speed_unit param
+  // for ensemble endpoint — convert to mph
+  const KMH_TO_MPH = 0.621371;
+  gustKeys.forEach(k => {
+    converted[k] = (data.daily[k] || []).map(v => v == null ? null : v * KMH_TO_MPH);
+  });
+
   return {
     memberCount: maxKeys.length,
     unitLabel: convertedCount > 0 ? `${convertedCount} keys C→F` : '°F native',
@@ -536,14 +705,14 @@ function processData(data) {
       const minArr    = minKeys.map(k    => converted[k]?.[di]).filter(v => v != null);
       const dewArr    = dewKeys.map(k    => converted[k]?.[di]).filter(v => v != null);
       const precipArr = precipKeys.map(k => converted[k]?.[di]).filter(v => v != null).sort((a,b)=>a-b);
+      const gustArr   = gustKeys.map(k   => converted[k]?.[di]).filter(v => v != null).sort((a,b)=>a-b);
 
       return {
         date,
         maxP10: pctile(maxArr, 10), maxP50: pctile(maxArr, 50), maxP90: pctile(maxArr, 90),
         minP10: pctile(minArr, 10), minP50: pctile(minArr, 50), minP90: pctile(minArr, 90),
         dewP10: pctile(dewArr, 10), dewP50: pctile(dewArr, 50), dewP90: pctile(dewArr, 90),
-        precipArr,
-        // Debug: expose raw median for console verification
+        precipArr, gustArr,
         _maxMedian: pctile(maxArr, 50),
         _minMedian: pctile(minArr, 50),
         precipProbs: PRECIP_THRESHOLDS.map(thresh =>
@@ -551,6 +720,13 @@ function processData(data) {
             ? Math.round(precipArr.filter(v => v >= thresh).length / precipArr.length * 100)
             : null
         ),
+        gustProbs: GUST_THRESHOLDS.map(thresh =>
+          gustArr.length
+            ? Math.round(gustArr.filter(v => v >= thresh).length / gustArr.length * 100)
+            : null
+        ),
+        gustP50: pctile(gustArr, 50),
+        gustP90: pctile(gustArr, 90),
       };
     })
   };
@@ -653,7 +829,60 @@ function buildRainTable(days) {
   });
 }
 
-// ── Status ────────────────────────────────────────────────────────────────────
+function buildWindTable(days) {
+  buildHeaders('headerWind', days);
+  const tb = document.getElementById('bodyWind'); tb.innerHTML='';
+
+  // Exceedance probability rows
+  GUST_THRESHOLDS.forEach((thresh, idx) => {
+    const tr = document.createElement('tr');
+    // Advisory labels for South FL context
+    let label = '';
+    if (thresh >= 40) label = ' 🚨';
+    else if (thresh >= 35) label = ' ⚠️';
+    else if (thresh >= 25) label = ' 🌬️';
+    tr.innerHTML = `<td>≥ ${thresh} mph${label}</td>`;
+    days.forEach(d => {
+      const p = d.gustProbs[idx];
+      if (p == null) { tr.innerHTML += '<td class="w0">—</td>'; return; }
+      tr.innerHTML += `<td class="${wc(p)}">${p}%</td>`;
+    });
+    tb.appendChild(tr);
+  });
+
+  // Median and 90th pct gust speed rows — colored by mph magnitude
+  // Scale: 0-9=w0, 10-14=w2, 15-19=w4, 20-24=w6, 25-29=w8, 30-34=w10, 35-39=w12, 40-44=w14, ≥45=w16
+  function gustSpeedClass(mph) {
+    if (!mph) return 'w0';
+    if (mph >= 45) return 'w16';
+    if (mph >= 40) return 'w14';
+    if (mph >= 35) return 'w12';
+    if (mph >= 30) return 'w10';
+    if (mph >= 25) return 'w8';
+    if (mph >= 20) return 'w6';
+    if (mph >= 15) return 'w4';
+    if (mph >= 10) return 'w2';
+    return 'w0';
+  }
+
+  const trMed = document.createElement('tr');
+  trMed.innerHTML = '<td>Median gust</td>';
+  days.forEach(d => {
+    const v = d.gustP50;
+    if (v == null) { trMed.innerHTML += '<td class="w0">—</td>'; return; }
+    trMed.innerHTML += `<td class="${gustSpeedClass(v)}">${Math.round(v)} mph</td>`;
+  });
+  tb.appendChild(trMed);
+
+  const trP90 = document.createElement('tr');
+  trP90.innerHTML = '<td>90th pct gust</td>';
+  days.forEach(d => {
+    const v = d.gustP90;
+    if (v == null) { trP90.innerHTML += '<td class="w0">—</td>'; return; }
+    trP90.innerHTML += `<td class="${gustSpeedClass(v)}">${Math.round(v)} mph</td>`;
+  });
+  tb.appendChild(trP90);
+}
 function setStatus(state, text, time='') {
   document.getElementById('status').className = state;
   document.getElementById('status-text').textContent = text;
@@ -678,22 +907,24 @@ async function init() {
     buildMinTable(days);
     buildDewTable(days);
     buildRainTable(days);
+    buildWindTable(days);
 
-    // Console debug — open DevTools to verify medians match NWS
+    // Console debug
     console.table(days.map(d => ({
       date: d.date,
       'High p50 (°F)': d._maxMedian?.toFixed(1),
       'Low p50 (°F)':  d._minMedian?.toFixed(1),
       'maxP10': d.maxP10?.toFixed(1), 'maxP90': d.maxP90?.toFixed(1),
+      'Gust p50 (mph)': d.gustP50?.toFixed(1),
     })));
 
-    ['sec-max','sec-min','sec-dew','sec-rain'].forEach(id =>
+    ['sec-max','sec-min','sec-dew','sec-rain','sec-wind'].forEach(id =>
       document.getElementById(id).style.display=''
     );
     document.getElementById('loading').style.display='none';
 
     const mLabel = `${memberCount} members`;
-    ['max-members','min-members','dew-members','rain-members'].forEach(id =>
+    ['max-members','min-members','dew-members','rain-members','wind-members'].forEach(id =>
       document.getElementById(id).textContent=mLabel
     );
 
