@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KPMP Temperature & Precip Probability — Pompano Weather</title>
+<title>KPMP Forecast Probabilities — Pompano Weather</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -17,200 +17,207 @@
     --accent:    #38aaff;
     --weekend:   #131d2a;
 
-    /* Heat scale — red (max temp) */
-    --hr0: #1a2535; --hr1: #2d3f55; --hr2: #7a2020;
-    --hr3: #a83030; --hr4: #cc1a1a; --hr5: #e00000; --hr6: #ff0000;
+    /* Red — high temp */
+    --hr0:#1a2535; --hr1:#2d3f55; --hr2:#7a2020;
+    --hr3:#a83030; --hr4:#cc1a1a; --hr5:#e00000; --hr6:#ff0000;
 
-    /* Cool scale — blue (min temp) */
-    --hb0: #1a2535; --hb1: #1a3560; --hb2: #1a5090;
-    --hb3: #1060b8; --hb4: #0070d8; --hb5: #0088ff; --hb6: #40aaff;
+    /* Blue — low temp */
+    --hb0:#1a2535; --hb1:#1a3560; --hb2:#1a5090;
+    --hb3:#1060b8; --hb4:#0070d8; --hb5:#0088ff; --hb6:#40aaff;
 
-    /* Rain scale — teal */
-    --hg0: #1a2535; --hg1: #1a3530; --hg2: #155a40;
-    --hg3: #0e7a50; --hg4: #08a060; --hg5: #00c070; --hg6: #00e080;
+    /* Purple/magenta — dew point */
+    --hd0:#1a1a2a; --hd1:#2d1a50; --hd2:#501a80;
+    --hd3:#7a20a8; --hd4:#a030cc; --hd5:#c040e0; --hd6:#e060ff;
+
+    /* Teal — precip */
+    --hg0:#1a2535; --hg1:#1a3530; --hg2:#155a40;
+    --hg3:#0e7a50; --hg4:#08a060; --hg5:#00c070; --hg6:#00e080;
   }
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 
   body {
-    font-family: 'Inter', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 24px 16px 48px;
+    font-family:'Inter',sans-serif;
+    background:var(--bg); color:var(--text);
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:24px 16px 48px;
   }
 
   header {
-    width: 100%; max-width: 920px;
-    margin-bottom: 18px;
-    display: flex; align-items: flex-end;
-    justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    width:100%; max-width:960px; margin-bottom:16px;
+    display:flex; align-items:flex-end;
+    justify-content:space-between; gap:12px; flex-wrap:wrap;
   }
 
-  .brand { display: flex; align-items: center; gap: 10px; }
-
+  .brand { display:flex; align-items:center; gap:10px; }
   .brand-icon {
-    width: 40px; height: 40px;
-    background: linear-gradient(135deg, #38aaff 0%, #005fa3 100%);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
+    width:40px; height:40px;
+    background:linear-gradient(135deg,#38aaff 0%,#005fa3 100%);
+    border-radius:8px; display:flex; align-items:center;
+    justify-content:center; font-size:20px;
   }
-
   .brand-text h1 {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 1.5rem; font-weight: 700;
-    letter-spacing: 0.04em; color: #fff; line-height: 1;
+    font-family:'Rajdhani',sans-serif; font-size:1.5rem;
+    font-weight:700; letter-spacing:0.04em; color:#fff; line-height:1;
   }
-
   .brand-text p {
-    font-size: 0.72rem; color: var(--muted);
-    letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px;
+    font-size:0.72rem; color:var(--muted);
+    letter-spacing:0.06em; text-transform:uppercase; margin-top:2px;
   }
 
   #status {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.72rem; color: var(--muted);
-    text-align: right; line-height: 1.6;
+    font-family:'Share Tech Mono',monospace;
+    font-size:0.72rem; color:var(--muted);
+    text-align:right; line-height:1.6;
   }
   #status .dot {
-    display: inline-block; width: 7px; height: 7px;
-    border-radius: 50%; background: #555;
-    margin-right: 5px; vertical-align: middle; transition: background 0.4s;
+    display:inline-block; width:7px; height:7px;
+    border-radius:50%; background:#555;
+    margin-right:5px; vertical-align:middle; transition:background 0.4s;
   }
-  #status.live .dot  { background: #00e676; box-shadow: 0 0 6px #00e676; }
-  #status.error .dot { background: #ff4444; }
+  #status.live .dot  { background:#00e676; box-shadow:0 0 6px #00e676; }
+  #status.error .dot { background:#ff4444; }
 
   .source-note {
-    width: 100%; max-width: 920px;
-    background: #0d1a27; border: 1px solid #1a3050;
-    border-radius: 6px; padding: 9px 14px;
-    font-size: 0.72rem; color: #5588aa;
-    margin-bottom: 22px; line-height: 1.5;
+    width:100%; max-width:960px;
+    background:#0d1a27; border:1px solid #1a3050;
+    border-radius:6px; padding:9px 14px;
+    font-size:0.72rem; color:#5588aa;
+    margin-bottom:20px; line-height:1.5;
   }
-  .source-note strong { color: #80aacc; }
+  .source-note strong { color:#80aacc; }
 
-  .section {
-    width: 100%; max-width: 920px;
-    margin-bottom: 28px;
-  }
+  /* ── Section ── */
+  .section { width:100%; max-width:960px; margin-bottom:26px; }
 
   .section-header {
-    display: flex; align-items: center;
-    gap: 10px; margin-bottom: 8px; flex-wrap: wrap;
+    display:flex; align-items:center;
+    gap:10px; margin-bottom:8px; flex-wrap:wrap;
   }
-
   .section-icon {
-    width: 28px; height: 28px; border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px; flex-shrink: 0;
+    width:28px; height:28px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; flex-shrink:0;
   }
-  .icon-max  { background: #3a0808; }
-  .icon-min  { background: #082040; }
-  .icon-rain { background: #081a14; }
+  .icon-max  { background:#3a0808; }
+  .icon-min  { background:#082040; }
+  .icon-dew  { background:#1a0838; }
+  .icon-rain { background:#081a14; }
 
   .section-title {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 1.05rem; font-weight: 700;
-    letter-spacing: 0.06em; text-transform: uppercase;
+    font-family:'Rajdhani',sans-serif; font-size:1.05rem;
+    font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
   }
-  .section-title.red  { color: #ff6666; }
-  .section-title.blue { color: #60aaff; }
-  .section-title.teal { color: #40d090; }
+  .section-title.red    { color:#ff6666; }
+  .section-title.blue   { color:#60aaff; }
+  .section-title.purple { color:#cc88ff; }
+  .section-title.teal   { color:#40d090; }
 
   .section-sub {
-    font-size: 0.68rem; color: var(--muted);
-    margin-left: auto; font-family: 'Share Tech Mono', monospace;
+    font-size:0.68rem; color:var(--muted);
+    margin-left:auto; font-family:'Share Tech Mono',monospace;
   }
 
   .season-badge {
-    display: inline-block;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.63rem; letter-spacing: 0.08em;
-    padding: 2px 7px; border-radius: 4px;
+    display:inline-block;
+    font-family:'Share Tech Mono',monospace;
+    font-size:0.63rem; letter-spacing:0.08em;
+    padding:2px 7px; border-radius:4px;
   }
   .badge-warm { background:#3a1a00; color:#ffaa44; border:1px solid #6a3a00; }
   .badge-cool { background:#001a3a; color:#44aaff; border:1px solid #003a6a; }
 
+  /* ── Table ── */
   .table-wrap {
-    overflow-x: auto;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.45);
+    overflow-x:auto;
+    border:1px solid var(--border);
+    border-radius:10px;
+    box-shadow:0 4px 24px rgba(0,0,0,0.45);
   }
 
-  table { border-collapse: collapse; width: 100%; min-width: 620px; }
+  table { border-collapse:collapse; width:100%; min-width:640px; }
 
   thead tr th {
-    background: var(--header-bg);
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 600; font-size: 0.82rem;
-    letter-spacing: 0.05em; text-transform: uppercase;
-    color: #aac4dc; padding: 10px 8px 8px;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap; text-align: center;
+    background:var(--header-bg);
+    font-family:'Rajdhani',sans-serif; font-weight:600;
+    font-size:0.82rem; letter-spacing:0.05em; text-transform:uppercase;
+    color:#aac4dc; padding:10px 8px 8px;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap; text-align:center;
   }
   thead tr th:first-child {
-    text-align: left; padding-left: 16px;
-    color: var(--muted); font-size: 0.72rem;
+    text-align:left; padding-left:16px;
+    color:var(--muted); font-size:0.72rem;
   }
   .day-num  { display:block; font-size:0.62rem; color:var(--muted); letter-spacing:0.08em; margin-bottom:1px; }
   .day-name { display:block; font-size:0.95rem; font-weight:700; color:#ddeeff; line-height:1; }
   .day-date { display:block; font-family:'Share Tech Mono',monospace; font-size:0.68rem; color:var(--muted); margin-top:2px; }
-  thead th.weekend { background: var(--weekend); }
+  thead th.weekend { background:var(--weekend); }
 
-  tbody tr { transition: filter 0.15s; }
-  tbody tr:hover { filter: brightness(1.12); }
+  tbody tr { transition:filter 0.15s; }
+  tbody tr:hover { filter:brightness(1.12); }
+
+  /* Divider rows for precip section */
+  tbody tr.divider td {
+    background:#0d1520 !important;
+    font-family:'Rajdhani',sans-serif; font-size:0.68rem;
+    font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--muted); padding:5px 0 4px 16px;
+    text-align:left; height:auto; border-top:1px solid var(--border);
+  }
 
   tbody td {
-    border: 1px solid rgba(255,255,255,0.04);
-    padding: 0; text-align: center; height: 42px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 1.0rem; font-weight: 600;
-    letter-spacing: 0.02em; transition: background 0.4s;
+    border:1px solid rgba(255,255,255,0.04);
+    padding:0; text-align:center; height:38px;
+    font-family:'Rajdhani',sans-serif;
+    font-size:0.98rem; font-weight:600;
+    letter-spacing:0.02em; transition:background 0.4s;
   }
   tbody td:first-child {
-    text-align: left; padding: 0 12px 0 16px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.78rem; font-weight: 400;
-    color: #88aacc; background: var(--panel) !important;
-    white-space: nowrap; border-right: 1px solid var(--border);
-    letter-spacing: 0;
+    text-align:left; padding:0 12px 0 16px;
+    font-family:'Share Tech Mono',monospace;
+    font-size:0.76rem; font-weight:400;
+    color:#88aacc; background:var(--panel) !important;
+    white-space:nowrap; border-right:1px solid var(--border);
+    letter-spacing:0;
   }
 
-  /* Red tiers */
+  /* Red */
   .r0{background:var(--hr0);color:#3a5570;} .r1{background:var(--hr1);color:#7a9ab8;}
   .r2{background:var(--hr2);color:#ffbbbb;} .r3{background:var(--hr3);color:#ffd0d0;}
   .r4{background:var(--hr4);color:#fff;}    .r5{background:var(--hr5);color:#fff;}
   .r6{background:var(--hr6);color:#fff;text-shadow:0 0 8px rgba(255,80,80,.6);}
-
-  /* Blue tiers */
+  /* Blue */
   .b0{background:var(--hb0);color:#3a5570;} .b1{background:var(--hb1);color:#99bbdd;}
   .b2{background:var(--hb2);color:#c0d8f0;} .b3{background:var(--hb3);color:#ddeeff;}
   .b4{background:var(--hb4);color:#fff;}    .b5{background:var(--hb5);color:#fff;}
   .b6{background:var(--hb6);color:#fff;text-shadow:0 0 8px rgba(80,180,255,.6);}
-
-  /* Teal tiers */
+  /* Purple */
+  .d0{background:var(--hd0);color:#3a3060;} .d1{background:var(--hd1);color:#aa88cc;}
+  .d2{background:var(--hd2);color:#cc99ee;} .d3{background:var(--hd3);color:#eeccff;}
+  .d4{background:var(--hd4);color:#fff;}    .d5{background:var(--hd5);color:#fff;}
+  .d6{background:var(--hd6);color:#fff;text-shadow:0 0 10px rgba(220,100,255,.7);}
+  /* Teal */
   .g0{background:var(--hg0);color:#3a5570;} .g1{background:var(--hg1);color:#90c8b0;}
   .g2{background:var(--hg2);color:#b0ddc8;} .g3{background:var(--hg3);color:#d0f0e0;}
   .g4{background:var(--hg4);color:#fff;}    .g5{background:var(--hg5);color:#fff;}
   .g6{background:var(--hg6);color:#fff;text-shadow:0 0 8px rgba(0,220,120,.5);}
 
+  /* ── Legend ── */
   .legend {
-    display: flex; align-items: center;
-    gap: 6px; flex-wrap: wrap; margin-top: 8px;
+    display:flex; align-items:center;
+    gap:6px; flex-wrap:wrap; margin-top:8px;
   }
   .legend-label {
-    font-size: 0.68rem; color: var(--muted);
-    font-family: 'Rajdhani', sans-serif; font-weight: 600;
-    letter-spacing: 0.08em; text-transform: uppercase; margin-right: 2px;
+    font-size:0.68rem; color:var(--muted);
+    font-family:'Rajdhani',sans-serif; font-weight:600;
+    letter-spacing:0.08em; text-transform:uppercase; margin-right:2px;
   }
   .legend-item { display:flex; align-items:center; gap:4px; font-size:0.68rem; color:#9ab8cc; }
   .legend-swatch { width:26px; height:14px; border-radius:3px; }
 
+  /* ── Loading/Error ── */
   #loading { margin-top:60px; text-align:center; color:var(--muted); }
   .spinner {
     width:36px; height:36px;
@@ -223,7 +230,7 @@
     display:none; margin-top:20px;
     background:#1a0808; border:1px solid #5a1010;
     border-radius:8px; padding:14px 20px;
-    color:#ff8888; font-size:0.85rem; max-width:600px; line-height:1.6;
+    color:#ff8888; font-size:0.85rem; max-width:640px; line-height:1.6;
   }
 
   footer {
@@ -251,15 +258,16 @@
 </header>
 
 <div class="source-note">
-  <strong>Data:</strong> Open-Meteo ensemble API (GFS, ECMWF, ICON, GEM) · Max/min probabilities
-  derived from ensemble spread via normal distribution fit. Min thresholds auto-scale by season.
-  Precip PoP = fraction of members with daily total ≥ 0.01". Refreshes every 15 min.
+  <strong>Data:</strong> Open-Meteo ensemble API (GFS, ECMWF, ICON, GEM) ·
+  Probabilities from ensemble spread via normal CDF fit to p10/p50/p90.
+  High: ≥75–100°F · Low: ≤60–85°F · Dew point: ≥60–78°F · Precip: PoP + ¼" thresholds.
+  All in 2°F / ¼" increments. Refreshes every 15 min.
 </div>
 
 <div id="loading"><div class="spinner"></div>Fetching ensemble forecast data…</div>
 <div id="error-msg"></div>
 
-<!-- ── MAX TEMP ── -->
+<!-- HIGH TEMP -->
 <div class="section" id="sec-max" style="display:none">
   <div class="section-header">
     <div class="section-icon icon-max">🔴</div>
@@ -284,7 +292,7 @@
   </div>
 </div>
 
-<!-- ── MIN TEMP ── -->
+<!-- LOW TEMP -->
 <div class="section" id="sec-min" style="display:none">
   <div class="section-header">
     <div class="section-icon icon-min">🔵</div>
@@ -310,7 +318,33 @@
   </div>
 </div>
 
-<!-- ── PRECIP ── -->
+<!-- DEW POINT -->
+<div class="section" id="sec-dew" style="display:none">
+  <div class="section-header">
+    <div class="section-icon icon-dew">💧</div>
+    <span class="section-title purple">Dew Point Exceedance</span>
+    <span class="section-sub" id="dew-members"></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr id="headerDew"><th>Threshold</th></tr></thead>
+      <tbody id="bodyDew"></tbody>
+    </table>
+  </div>
+  <div class="legend">
+    <span class="legend-label">Probability:</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd0)"></span>&lt;40%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd1)"></span>40–49%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd2)"></span>50–59%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd3)"></span>60–69%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd4)"></span>70–79%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd5)"></span>80–89%</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:var(--hd6)"></span>≥90%</span>
+    <span style="font-size:0.65rem;color:var(--muted);margin-left:6px">· ≥70°F = muggy · ≥75°F = oppressive</span>
+  </div>
+</div>
+
+<!-- PRECIP -->
 <div class="section" id="sec-rain" style="display:none">
   <div class="section-header">
     <div class="section-icon icon-rain">🟢</div>
@@ -319,12 +353,12 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr id="headerRain"><th>Metric</th></tr></thead>
+      <thead><tr id="headerRain"><th>Threshold</th></tr></thead>
       <tbody id="bodyRain"></tbody>
     </table>
   </div>
   <div class="legend">
-    <span class="legend-label">PoP row:</span>
+    <span class="legend-label">Probability:</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg0)"></span>&lt;40%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg1)"></span>40–49%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg2)"></span>50–59%</span>
@@ -332,7 +366,6 @@
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg4)"></span>70–79%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg5)"></span>80–89%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg6)"></span>≥90%</span>
-    <span style="font-size:0.65rem;color:var(--muted);margin-left:6px">· Amount rows colored by inches</span>
   </div>
 </div>
 
@@ -343,16 +376,34 @@
 </footer>
 
 <script>
+// ── Config ────────────────────────────────────────────────────────────────────
 const LAT        = 26.247;
 const LON        = -80.111;
 const REFRESH_MS = 15 * 60 * 1000;
-const MAX_THRESHOLDS = [89, 86, 83, 80, 77, 74, 71, 68];
 
+// High temp: ≥75°F to ≥100°F in 2°F steps (descending — hottest first)
+const MAX_THRESHOLDS = range(100, 75, -2);
+
+// Dew point: ≥60°F to ≥78°F in 2°F steps (descending)
+const DEW_THRESHOLDS = range(78, 60, -2);
+
+// Precip: PoP (0.01") + quarter-inch exceedance thresholds
+const PRECIP_THRESHOLDS = [0.01, 0.25, 0.50, 0.75, 1.00, 1.50, 2.00];
+
+function range(start, stop, step) {
+  const out = [];
+  for (let v = start; step > 0 ? v <= stop : v >= stop; v += step) out.push(v);
+  return out;
+}
+
+// Low temp seasonal thresholds: ≤60°F to ≤85°F in 2°F steps
 function getMinThresholds() {
+  // Warm season shows higher thresholds (cool nights are notable)
+  // Cool season shows lower thresholds (cold/frost risk)
   const m = new Date().getMonth() + 1;
   return (m >= 5 && m <= 9)
-    ? [80, 77, 75, 72, 70, 68]   // warm season: unusually cool nights
-    : [75, 70, 65, 60, 55, 50];  // cool season: frost / cold risk
+    ? range(85, 60, -2)   // warm: 85 down to 60
+    : range(75, 50, -2);  // cool: 75 down to 50
 }
 
 function getSeason() {
@@ -360,224 +411,274 @@ function getSeason() {
   return (m >= 5 && m <= 9) ? 'warm' : 'cool';
 }
 
-/* ── Normal CDF (Hart 1968) ── */
+// ── Math ──────────────────────────────────────────────────────────────────────
 function normalCDF(x) {
-  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,
+        a4=-1.453152027,a5=1.061405429,p=0.3275911;
   const sign=x<0?-1:1; x=Math.abs(x)/Math.SQRT2;
   const t=1/(1+p*x);
   const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
   return 0.5*(1+sign*y);
 }
 
-function exceedProb(p10,p50,p90,thresh) {
-  if(p90<=p10) return p50>=thresh?100:0;
-  const sigma=(p90-p10)/(2*1.2816);
-  return Math.round(Math.max(0,Math.min(100,(1-normalCDF((thresh-p50)/sigma))*100)));
+// P(X ≥ threshold)
+function exceedProb(p10, p50, p90, threshold) {
+  if (p90 <= p10) return p50 >= threshold ? 100 : 0;
+  const sigma = (p90 - p10) / (2 * 1.2816);
+  return Math.round(Math.max(0, Math.min(100,
+    (1 - normalCDF((threshold - p50) / sigma)) * 100)));
 }
 
-function belowProb(p10,p50,p90,thresh) {
-  if(p90<=p10) return p50<=thresh?100:0;
-  const sigma=(p90-p10)/(2*1.2816);
-  return Math.round(Math.max(0,Math.min(100,normalCDF((thresh-p50)/sigma)*100)));
+// P(X ≤ threshold)
+function belowProb(p10, p50, p90, threshold) {
+  if (p90 <= p10) return p50 <= threshold ? 100 : 0;
+  const sigma = (p90 - p10) / (2 * 1.2816);
+  return Math.round(Math.max(0, Math.min(100,
+    normalCDF((threshold - p50) / sigma) * 100)));
 }
 
-function pctile(arr,p) {
-  if(!arr.length) return null;
-  const s=[...arr].sort((a,b)=>a-b);
-  const idx=(p/100)*(s.length-1);
-  const lo=Math.floor(idx),hi=Math.ceil(idx);
-  return s[lo]+(s[hi]-s[lo])*(idx-lo);
+function pctile(arr, p) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a,b)=>a-b);
+  const idx = (p/100)*(s.length-1);
+  const lo=Math.floor(idx), hi=Math.ceil(idx);
+  return s[lo] + (s[hi]-s[lo])*(idx-lo);
 }
 
-function dayName(d) { return new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'}); }
-function shortDate(d) { const[,m,day]=d.split('-'); return `${m}/${day}`; }
-function isWeekend(d) { const w=new Date(d+'T12:00:00').getDay(); return w===0||w===6; }
+// ── Color classes ─────────────────────────────────────────────────────────────
+const tier = (p, pfx) =>
+  p>=90?pfx+'6':p>=80?pfx+'5':p>=70?pfx+'4':p>=60?pfx+'3':p>=50?pfx+'2':p>=40?pfx+'1':pfx+'0';
+const rc = p => tier(p,'r');
+const bc = p => tier(p,'b');
+const dc = p => tier(p,'d');
+const gc = p => tier(p,'g');
 
-function redClass(p)  { return p>=90?'r6':p>=80?'r5':p>=70?'r4':p>=60?'r3':p>=50?'r2':p>=40?'r1':'r0'; }
-function blueClass(p) { return p>=90?'b6':p>=80?'b5':p>=70?'b4':p>=60?'b3':p>=50?'b2':p>=40?'b1':'b0'; }
-function tealClass(p) { return p>=90?'g6':p>=80?'g5':p>=70?'g4':p>=60?'g3':p>=50?'g2':p>=40?'g1':'g0'; }
-function amtClass(v,hi)  {
-  // hi=true means use higher break points (90th pct)
-  if(hi) return v>=2.0?'g6':v>=1.0?'g5':v>=0.5?'g4':v>=0.25?'g3':v>=0.01?'g2':'g0';
-  return      v>=1.0?'g6':v>=0.5?'g5':v>=0.25?'g4':v>=0.10?'g3':v>=0.01?'g2':'g0';
-}
+// ── Date helpers ──────────────────────────────────────────────────────────────
+const dayName  = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
+const shortDt  = d => { const[,m,day]=d.split('-'); return `${m}/${day}`; };
+const isWeekend = d => { const w=new Date(d+'T12:00:00').getDay(); return w===0||w===6; };
 
-/* ── Fetch ── */
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 async function fetchEnsemble() {
-  const url=new URL('https://ensemble-api.open-meteo.com/v1/ensemble');
-  url.searchParams.set('latitude',LAT);
-  url.searchParams.set('longitude',LON);
-  url.searchParams.set('temperature_unit','fahrenheit');
-  url.searchParams.set('precipitation_unit','inch');
-  url.searchParams.set('forecast_days','7');
-  url.searchParams.set('models','gfs_seamless,ecmwf_ifs04,icon_seamless,gem_seamless');
-  url.searchParams.set('hourly','temperature_2m,precipitation');
-  url.searchParams.set('timezone','America/New_York');
-  const res=await fetch(url.toString(),{signal:AbortSignal.timeout(20000)});
-  if(!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
+  const url = new URL('https://ensemble-api.open-meteo.com/v1/ensemble');
+  url.searchParams.set('latitude', LAT);
+  url.searchParams.set('longitude', LON);
+  url.searchParams.set('temperature_unit', 'fahrenheit');
+  url.searchParams.set('precipitation_unit', 'inch');
+  url.searchParams.set('forecast_days', '7');
+  url.searchParams.set('models', 'gfs_seamless,ecmwf_ifs04,icon_seamless,gem_seamless');
+  url.searchParams.set('hourly', 'temperature_2m,dewpoint_2m,precipitation');
+  url.searchParams.set('timezone', 'America/New_York');
+  const res = await fetch(url.toString(), {signal: AbortSignal.timeout(25000)});
+  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
   return res.json();
 }
 
-/* ── Process ── */
+// ── Process ───────────────────────────────────────────────────────────────────
 function processData(data) {
-  const times=data.hourly.time;
-  const tempKeys=Object.keys(data.hourly).filter(k=>k.startsWith('temperature_2m_'));
-  const precipKeys=Object.keys(data.hourly).filter(k=>k.startsWith('precipitation_'));
-  if(!tempKeys.length) throw new Error('No ensemble data returned.');
+  const times = data.hourly.time;
 
-  const byDate={};
-  times.forEach((t,i)=>{
-    const date=t.split('T')[0];
-    const hour=parseInt(t.split('T')[1]);
-    if(!byDate[date]) byDate[date]={day:[],night:[],precip:{}};
-    if(hour>=10&&hour<=20) tempKeys.forEach(k=>{ const v=data.hourly[k][i]; if(v!=null) byDate[date].day.push(v); });
-    if(hour<=9||hour>=20)  tempKeys.forEach(k=>{ const v=data.hourly[k][i]; if(v!=null) byDate[date].night.push(v); });
-    precipKeys.forEach(k=>{ const v=data.hourly[k][i]; if(v!=null) byDate[date].precip[k]=(byDate[date].precip[k]||0)+v; });
+  const tempKeys  = Object.keys(data.hourly).filter(k => k.startsWith('temperature_2m_'));
+  const dewKeys   = Object.keys(data.hourly).filter(k => k.startsWith('dewpoint_2m_'));
+  const precipKeys= Object.keys(data.hourly).filter(k => k.startsWith('precipitation_'));
+
+  if (!tempKeys.length) throw new Error('No ensemble temperature data returned.');
+
+  const byDate = {};
+  times.forEach((t, i) => {
+    const date = t.split('T')[0];
+    const hour = parseInt(t.split('T')[1]);
+    if (!byDate[date]) byDate[date] = {day:[], night:[], dew:[], precip:{}};
+
+    // Daytime 10am–8pm → high temps
+    if (hour >= 10 && hour <= 20) {
+      tempKeys.forEach(k => { const v=data.hourly[k][i]; if(v!=null) byDate[date].day.push(v); });
+      // Dew point: afternoon peak (noon–8pm) for worst-case humidity
+      if (hour >= 12) {
+        dewKeys.forEach(k => { const v=data.hourly[k][i]; if(v!=null) byDate[date].dew.push(v); });
+      }
+    }
+    // Overnight for low temps
+    if (hour <= 9 || hour >= 20) {
+      tempKeys.forEach(k => { const v=data.hourly[k][i]; if(v!=null) byDate[date].night.push(v); });
+    }
+    // Precip: full day sum per member
+    precipKeys.forEach(k => {
+      const v = data.hourly[k][i];
+      if (v != null) byDate[date].precip[k] = (byDate[date].precip[k]||0) + v;
+    });
   });
 
-  const days=Object.keys(byDate).sort().slice(0,7);
+  const days = Object.keys(byDate).sort().slice(0,7);
   return {
     memberCount: tempKeys.length,
-    days: days.map(date=>{
-      const d=byDate[date];
-      const precipArr=Object.values(d.precip).sort((a,b)=>a-b);
+    days: days.map(date => {
+      const d = byDate[date];
+      const precipArr = Object.values(d.precip).sort((a,b)=>a-b);
       return {
         date,
-        maxP10:pctile(d.day,10), maxP50:pctile(d.day,50), maxP90:pctile(d.day,90),
-        minP10:pctile(d.night,10), minP50:pctile(d.night,50), minP90:pctile(d.night,90),
-        precipProb: precipArr.length ? Math.round(precipArr.filter(v=>v>=0.01).length/precipArr.length*100) : null,
-        precipP50: pctile(precipArr,50),
-        precipP90: pctile(precipArr,90),
+        maxP10: pctile(d.day,10),   maxP50: pctile(d.day,50),   maxP90: pctile(d.day,90),
+        minP10: pctile(d.night,10), minP50: pctile(d.night,50), minP90: pctile(d.night,90),
+        dewP10: pctile(d.dew,10),   dewP50: pctile(d.dew,50),   dewP90: pctile(d.dew,90),
+        precipArr,
+        // Pre-compute PoP and threshold probs
+        precipProbs: PRECIP_THRESHOLDS.map(thresh =>
+          precipArr.length
+            ? Math.round(precipArr.filter(v=>v>=thresh).length / precipArr.length * 100)
+            : null
+        ),
       };
     })
   };
 }
 
-/* ── Header builder ── */
-function buildHeaders(trId,days) {
-  const tr=document.getElementById(trId);
-  while(tr.children.length>1) tr.removeChild(tr.lastChild);
-  days.forEach((d,i)=>{
-    const th=document.createElement('th');
-    if(isWeekend(d.date)) th.className='weekend';
-    th.innerHTML=`<span class="day-num">Day ${i+1}</span><span class="day-name">${dayName(d.date)}</span><span class="day-date">${shortDate(d.date)}</span>`;
+// ── Header builder ────────────────────────────────────────────────────────────
+function buildHeaders(trId, days) {
+  const tr = document.getElementById(trId);
+  while (tr.children.length > 1) tr.removeChild(tr.lastChild);
+  days.forEach((d, i) => {
+    const th = document.createElement('th');
+    if (isWeekend(d.date)) th.className = 'weekend';
+    th.innerHTML = `<span class="day-num">Day ${i+1}</span>`+
+                   `<span class="day-name">${dayName(d.date)}</span>`+
+                   `<span class="day-date">${shortDt(d.date)}</span>`;
     tr.appendChild(th);
   });
 }
 
-/* ── Table builders ── */
+// ── Table builders ────────────────────────────────────────────────────────────
 function buildMaxTable(days) {
-  buildHeaders('headerMax',days);
-  const tb=document.getElementById('bodyMax'); tb.innerHTML='';
-  MAX_THRESHOLDS.forEach(thresh=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>≥ ${thresh}°F</td>`;
-    days.forEach(d=>{
-      if(d.maxP50==null){tr.innerHTML+='<td class="r0">—</td>';return;}
-      const p=exceedProb(d.maxP10,d.maxP50,d.maxP90,thresh);
-      tr.innerHTML+=`<td class="${redClass(p)}">${p}%</td>`;
+  buildHeaders('headerMax', days);
+  const tb = document.getElementById('bodyMax'); tb.innerHTML='';
+  MAX_THRESHOLDS.forEach(thresh => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>≥ ${thresh}°F</td>`;
+    days.forEach(d => {
+      if (d.maxP50==null) { tr.innerHTML+='<td class="r0">—</td>'; return; }
+      const p = exceedProb(d.maxP10, d.maxP50, d.maxP90, thresh);
+      tr.innerHTML += `<td class="${rc(p)}">${p}%</td>`;
     });
     tb.appendChild(tr);
   });
 }
 
 function buildMinTable(days) {
-  const thresholds=getMinThresholds();
-  const season=getSeason();
-  document.getElementById('season-badge-el').innerHTML=
+  const thresholds = getMinThresholds();
+  const season = getSeason();
+  document.getElementById('season-badge-el').innerHTML =
     season==='warm'
       ? '<span class="season-badge badge-warm">WARM SEASON</span>'
       : '<span class="season-badge badge-cool">COOL SEASON</span>';
 
-  buildHeaders('headerMin',days);
-  const tb=document.getElementById('bodyMin'); tb.innerHTML='';
-  thresholds.forEach(thresh=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>≤ ${thresh}°F</td>`;
-    days.forEach(d=>{
-      if(d.minP50==null){tr.innerHTML+='<td class="b0">—</td>';return;}
-      const p=belowProb(d.minP10,d.minP50,d.minP90,thresh);
-      tr.innerHTML+=`<td class="${blueClass(p)}">${p}%</td>`;
+  buildHeaders('headerMin', days);
+  const tb = document.getElementById('bodyMin'); tb.innerHTML='';
+  thresholds.forEach(thresh => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>≤ ${thresh}°F</td>`;
+    days.forEach(d => {
+      if (d.minP50==null) { tr.innerHTML+='<td class="b0">—</td>'; return; }
+      const p = belowProb(d.minP10, d.minP50, d.minP90, thresh);
+      tr.innerHTML += `<td class="${bc(p)}">${p}%</td>`;
+    });
+    tb.appendChild(tr);
+  });
+}
+
+function buildDewTable(days) {
+  buildHeaders('headerDew', days);
+  const tb = document.getElementById('bodyDew'); tb.innerHTML='';
+  DEW_THRESHOLDS.forEach(thresh => {
+    const tr = document.createElement('tr');
+    // Comfort label
+    let label = '';
+    if (thresh >= 76) label = ' 🥵';
+    else if (thresh >= 72) label = ' 😓';
+    else if (thresh >= 68) label = ' 😐';
+    tr.innerHTML = `<td>≥ ${thresh}°F${label}</td>`;
+    days.forEach(d => {
+      if (d.dewP50==null) { tr.innerHTML+='<td class="d0">—</td>'; return; }
+      const p = exceedProb(d.dewP10, d.dewP50, d.dewP90, thresh);
+      tr.innerHTML += `<td class="${dc(p)}">${p}%</td>`;
     });
     tb.appendChild(tr);
   });
 }
 
 function buildRainTable(days) {
-  buildHeaders('headerRain',days);
-  const tb=document.getElementById('bodyRain'); tb.innerHTML='';
+  buildHeaders('headerRain', days);
+  const tb = document.getElementById('bodyRain'); tb.innerHTML='';
 
-  // Row 1: PoP ≥ 0.01"
-  const trPop=document.createElement('tr');
-  trPop.innerHTML='<td>PoP ≥ 0.01"</td>';
-  days.forEach(d=>{
-    const p=d.precipProb;
-    if(p==null){trPop.innerHTML+='<td class="g0">—</td>';return;}
-    trPop.innerHTML+=`<td class="${tealClass(p)}">${p}%</td>`;
-  });
-  tb.appendChild(trPop);
+  PRECIP_THRESHOLDS.forEach((thresh, idx) => {
+    // Divider before ≥0.25 group
+    if (thresh === 0.25) {
+      const div = document.createElement('tr');
+      div.className = 'divider';
+      div.innerHTML = `<td colspan="${days.length+1}">Exceedance — daily total</td>`;
+      tb.appendChild(div);
+    }
 
-  // Row 2: Median daily amount
-  const trMed=document.createElement('tr');
-  trMed.innerHTML='<td>Median (in)</td>';
-  days.forEach(d=>{
-    const v=d.precipP50;
-    if(v==null){trMed.innerHTML+='<td class="g0">—</td>';return;}
-    const lbl=v<0.005?'T':v.toFixed(2)+'"';
-    trMed.innerHTML+=`<td class="${amtClass(v,false)}">${lbl}</td>`;
+    const tr = document.createElement('tr');
+    const label = thresh < 0.05 ? 'PoP ≥ 0.01" (any rain)' : `≥ ${thresh.toFixed(2)}"`;
+    tr.innerHTML = `<td>${label}</td>`;
+    days.forEach((d, di) => {
+      const p = d.precipProbs[idx];
+      if (p==null) { tr.innerHTML+='<td class="g0">—</td>'; return; }
+      tr.innerHTML += `<td class="${gc(p)}">${p}%</td>`;
+    });
+    tb.appendChild(tr);
   });
-  tb.appendChild(trMed);
-
-  // Row 3: 90th pct amount
-  const trP90=document.createElement('tr');
-  trP90.innerHTML='<td>90th pct (in)</td>';
-  days.forEach(d=>{
-    const v=d.precipP90;
-    if(v==null){trP90.innerHTML+='<td class="g0">—</td>';return;}
-    const lbl=v<0.005?'T':v.toFixed(2)+'"';
-    trP90.innerHTML+=`<td class="${amtClass(v,true)}">${lbl}</td>`;
-  });
-  tb.appendChild(trP90);
 }
 
-/* ── Status ── */
-function setStatus(state,text,time=''){
-  document.getElementById('status').className=state;
-  document.getElementById('status-text').textContent=text;
-  document.getElementById('updated-time').textContent=time;
+// ── Status ────────────────────────────────────────────────────────────────────
+function setStatus(state, text, time='') {
+  document.getElementById('status').className = state;
+  document.getElementById('status-text').textContent = text;
+  document.getElementById('updated-time').textContent = time;
 }
-function showError(msg){
-  const el=document.getElementById('error-msg');
+function showError(msg) {
+  const el = document.getElementById('error-msg');
   el.style.display='block';
   el.innerHTML=`<strong>⚠ Data fetch failed</strong><br>${msg}<br><br>Will retry on next refresh.`;
   setStatus('error','Fetch failed');
 }
 
-/* ── Main ── */
-async function init(){
+// ── Main ──────────────────────────────────────────────────────────────────────
+async function init() {
   document.getElementById('error-msg').style.display='none';
   setStatus('','Loading…');
-  try{
-    const raw=await fetchEnsemble();
-    const {days,memberCount}=processData(raw);
+  try {
+    const raw = await fetchEnsemble();
+    const {days, memberCount} = processData(raw);
+
     buildMaxTable(days);
     buildMinTable(days);
+    buildDewTable(days);
     buildRainTable(days);
-    ['sec-max','sec-min','sec-rain'].forEach(id=>document.getElementById(id).style.display='');
+
+    ['sec-max','sec-min','sec-dew','sec-rain'].forEach(id =>
+      document.getElementById(id).style.display=''
+    );
     document.getElementById('loading').style.display='none';
-    const mLabel=`${memberCount} models`;
-    ['max-members','min-members','rain-members'].forEach(id=>document.getElementById(id).textContent=mLabel);
-    const now=new Date().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+
+    const mLabel = `${memberCount} models`;
+    ['max-members','min-members','dew-members','rain-members'].forEach(id =>
+      document.getElementById(id).textContent=mLabel
+    );
+
+    const now = new Date().toLocaleString('en-US',{
+      month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'
+    });
     setStatus('live',`Live · ${memberCount} ensemble members`,`Updated ${now}`);
-  }catch(err){
-    console.error('[KPMP Prob]',err);
+
+  } catch(err) {
+    console.error('[KPMP Prob]', err);
     document.getElementById('loading').style.display='none';
     showError(err.message||'Unknown error');
   }
 }
 
 init();
-setInterval(init,REFRESH_MS);
+setInterval(init, REFRESH_MS);
 </script>
 </body>
 </html>
