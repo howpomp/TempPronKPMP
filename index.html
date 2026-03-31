@@ -463,7 +463,8 @@ async function fetchEnsemble() {
   const url = new URL('https://ensemble-api.open-meteo.com/v1/ensemble');
   url.searchParams.set('latitude', LAT);
   url.searchParams.set('longitude', LON);
-  url.searchParams.set('temperature_unit', 'fahrenheit');
+  // NOTE: Do NOT pass temperature_unit — the ensemble endpoint may silently
+  // ignore it for some models. We request raw (Celsius) and convert ourselves.
   url.searchParams.set('precipitation_unit', 'inch');
   url.searchParams.set('forecast_days', '7');
   url.searchParams.set('models', 'gfs_seamless,ecmwf_ifs04,icon_seamless,gem_seamless');
@@ -474,6 +475,9 @@ async function fetchEnsemble() {
   return res.json();
 }
 
+// Convert Celsius → Fahrenheit
+const toF = c => (c * 9/5) + 32;
+
 // ── Process ───────────────────────────────────────────────────────────────────
 function processData(data) {
   const times = data.hourly.time;
@@ -481,6 +485,29 @@ function processData(data) {
   const tempKeys  = Object.keys(data.hourly).filter(k => k.startsWith('temperature_2m_'));
   const dewKeys   = Object.keys(data.hourly).filter(k => k.startsWith('dewpoint_2m_'));
   const precipKeys= Object.keys(data.hourly).filter(k => k.startsWith('precipitation_'));
+
+  // Detect if API returned Celsius (Open-Meteo ensemble endpoint often ignores
+  // temperature_unit for multi-model requests). A South FL temp above 60°C is
+  // impossible, so if p50 of any temp array exceeds 60 we're already in °F.
+  // More reliably: check the hourly_units metadata field if present.
+  const reportedUnit = data.hourly_units?.temperature_2m ?? '';
+  const needsConvert = reportedUnit === '°C' || reportedUnit === 'C' ||
+    // Fallback heuristic: median of first available temp array should be ~21–32°C
+    // for South FL. If it's > 50 it's already Fahrenheit.
+    (() => {
+      const firstKey = tempKeys[0];
+      if (!firstKey) return false;
+      const sample = data.hourly[firstKey].filter(v => v != null).slice(0, 48);
+      const med = sample.sort((a,b)=>a-b)[Math.floor(sample.length/2)];
+      return med !== null && med < 50; // below 50 → must be Celsius
+    })();
+
+  // Helper: get value and convert if needed
+  const getTemp = (key, i) => {
+    const v = data.hourly[key][i];
+    if (v == null) return null;
+    return needsConvert ? toF(v) : v;
+  };
 
   if (!tempKeys.length) throw new Error('No ensemble temperature data returned.');
 
@@ -490,19 +517,19 @@ function processData(data) {
     const hour = parseInt(t.split('T')[1]);
     if (!byDate[date]) byDate[date] = {day:[], night:[], dew:[], precip:{}};
 
-    // Daytime 10am–8pm → high temps
+    // Daytime 10am–8pm → high temps (converted to °F)
     if (hour >= 10 && hour <= 20) {
-      tempKeys.forEach(k => { const v=data.hourly[k][i]; if(v!=null) byDate[date].day.push(v); });
+      tempKeys.forEach(k => { const v=getTemp(k,i); if(v!=null) byDate[date].day.push(v); });
       // Dew point: afternoon peak (noon–8pm) for worst-case humidity
       if (hour >= 12) {
-        dewKeys.forEach(k => { const v=data.hourly[k][i]; if(v!=null) byDate[date].dew.push(v); });
+        dewKeys.forEach(k => { const v=getTemp(k,i); if(v!=null) byDate[date].dew.push(v); });
       }
     }
-    // Overnight for low temps
+    // Overnight for low temps (converted to °F)
     if (hour <= 9 || hour >= 20) {
-      tempKeys.forEach(k => { const v=data.hourly[k][i]; if(v!=null) byDate[date].night.push(v); });
+      tempKeys.forEach(k => { const v=getTemp(k,i); if(v!=null) byDate[date].night.push(v); });
     }
-    // Precip: full day sum per member
+    // Precip: full day sum per member (already in inches — no conversion needed)
     precipKeys.forEach(k => {
       const v = data.hourly[k][i];
       if (v != null) byDate[date].precip[k] = (byDate[date].precip[k]||0) + v;
@@ -512,6 +539,7 @@ function processData(data) {
   const days = Object.keys(byDate).sort().slice(0,7);
   return {
     memberCount: tempKeys.length,
+    unitLabel: needsConvert ? 'C→F converted' : '°F native',
     days: days.map(date => {
       const d = byDate[date];
       const precipArr = Object.values(d.precip).sort((a,b)=>a-b);
@@ -648,7 +676,7 @@ async function init() {
   setStatus('','Loading…');
   try {
     const raw = await fetchEnsemble();
-    const {days, memberCount} = processData(raw);
+    const {days, memberCount, unitLabel} = processData(raw);
 
     buildMaxTable(days);
     buildMinTable(days);
@@ -668,7 +696,7 @@ async function init() {
     const now = new Date().toLocaleString('en-US',{
       month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'
     });
-    setStatus('live',`Live · ${memberCount} ensemble members`,`Updated ${now}`);
+    setStatus('live',`Live · ${memberCount} ensemble members · ${unitLabel}`,`Updated ${now}`);
 
   } catch(err) {
     console.error('[KPMP Prob]', err);
