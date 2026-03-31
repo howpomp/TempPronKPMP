@@ -466,11 +466,9 @@ async function fetchEnsemble() {
   const url = new URL('https://ensemble-api.open-meteo.com/v1/ensemble');
   url.searchParams.set('latitude', LAT);
   url.searchParams.set('longitude', LON);
-  // Request Celsius explicitly — we convert ourselves to avoid silent unit bugs
   url.searchParams.set('precipitation_unit', 'inch');
   url.searchParams.set('forecast_days', '7');
   url.searchParams.set('models', 'gfs_seamless,ecmwf_ifs04,icon_seamless,gem_seamless');
-  // Daily variables: true calendar max/min computed by the model, not sliced hourly
   url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,dewpoint_2m_max,precipitation_sum');
   url.searchParams.set('timezone', 'America/New_York');
   const res = await fetch(url.toString(), {signal: AbortSignal.timeout(25000)});
@@ -478,14 +476,34 @@ async function fetchEnsemble() {
   return res.json();
 }
 
+// ── Unit detection — per individual key to handle mixed-unit responses ────────
+// Open-Meteo ensemble may return some model members in °C and others in °F
+// depending on which model families honor the temperature_unit param.
+// We detect per-key using the South FL climate constraint:
+//   • A valid FL daily high in °F is always in range 40–115
+//   • A valid FL daily high in °C is always in range 4–46
+//   • Values 47–115 are unambiguously °F
+//   • Values below 47 could be either, but for FL in °C highs are 20–36 (68–97°F)
+//     and in °F lows are 40–75 in cool season — overlap zone 40–47
+// Simplest reliable heuristic: if ANY non-null value in the array exceeds 55,
+// it must be °F (55°C = 131°F — impossible). If all values are below 50, it's °C.
+function detectAndConvert(arr) {
+  if (!arr || !arr.length) return arr;
+  const nonNull = arr.filter(v => v != null);
+  if (!nonNull.length) return arr;
+  const maxVal = Math.max(...nonNull);
+  // If max > 55 it's already Fahrenheit — no conversion needed
+  if (maxVal > 55) return arr.map(v => v == null ? null : v);
+  // Otherwise assume Celsius and convert
+  return arr.map(v => v == null ? null : toF(v));
+}
+
 // ── Process — daily endpoint gives one value per member per day ───────────────
 function processData(data) {
   if (!data.daily) throw new Error('No daily data returned from Open-Meteo.');
 
-  const dates = data.daily.time; // ['2026-03-30', '2026-03-31', ...]
+  const dates = data.daily.time;
 
-  // Collect per-variable member arrays
-  // Keys like: temperature_2m_max_gfs_seamless, temperature_2m_max_member01_ncep_gefs, etc.
   const maxKeys    = Object.keys(data.daily).filter(k => k.startsWith('temperature_2m_max_'));
   const minKeys    = Object.keys(data.daily).filter(k => k.startsWith('temperature_2m_min_'));
   const dewKeys    = Object.keys(data.daily).filter(k => k.startsWith('dewpoint_2m_max_'));
@@ -493,26 +511,31 @@ function processData(data) {
 
   if (!maxKeys.length) throw new Error('No ensemble temperature_2m_max data returned.');
 
-  // Detect units from metadata
-  const reportedUnit = data.daily_units?.temperature_2m_max ?? '';
-  const needsConvert = reportedUnit === '°C' || reportedUnit === 'C' ||
-    (() => {
-      // Heuristic: sample first member's first value — FL temps are never below 50°C
-      const sample = data.daily[maxKeys[0]]?.find(v => v != null);
-      return sample != null && sample < 50;
-    })();
+  // Count how many keys needed conversion for the status label
+  let convertedCount = 0;
+  const converted = {};
+  [...maxKeys, ...minKeys, ...dewKeys].forEach(k => {
+    const raw = data.daily[k];
+    const fixed = detectAndConvert(raw);
+    // Check if conversion happened by comparing first non-null value
+    const firstRaw = raw?.find(v => v != null);
+    const firstFixed = fixed?.find(v => v != null);
+    if (firstRaw != null && firstFixed != null && Math.abs(firstFixed - firstRaw) > 1) {
+      convertedCount++;
+    }
+    converted[k] = fixed;
+  });
+  // Precip stays as-is (inches)
+  precipKeys.forEach(k => { converted[k] = data.daily[k]; });
 
-  const cv = v => (v == null ? null : needsConvert ? toF(v) : v);
-
-  // For each date index, collect all member values into arrays
   return {
     memberCount: maxKeys.length,
-    unitLabel: needsConvert ? 'C→F' : '°F',
+    unitLabel: convertedCount > 0 ? `${convertedCount} keys C→F` : '°F native',
     days: dates.slice(0, 7).map((date, di) => {
-      const maxArr    = maxKeys.map(k    => cv(data.daily[k][di])).filter(v => v != null);
-      const minArr    = minKeys.map(k    => cv(data.daily[k][di])).filter(v => v != null);
-      const dewArr    = dewKeys.map(k    => cv(data.daily[k][di])).filter(v => v != null);
-      const precipArr = precipKeys.map(k =>    data.daily[k][di] ).filter(v => v != null).sort((a,b)=>a-b);
+      const maxArr    = maxKeys.map(k    => converted[k]?.[di]).filter(v => v != null);
+      const minArr    = minKeys.map(k    => converted[k]?.[di]).filter(v => v != null);
+      const dewArr    = dewKeys.map(k    => converted[k]?.[di]).filter(v => v != null);
+      const precipArr = precipKeys.map(k => converted[k]?.[di]).filter(v => v != null).sort((a,b)=>a-b);
 
       return {
         date,
@@ -520,6 +543,9 @@ function processData(data) {
         minP10: pctile(minArr, 10), minP50: pctile(minArr, 50), minP90: pctile(minArr, 90),
         dewP10: pctile(dewArr, 10), dewP50: pctile(dewArr, 50), dewP90: pctile(dewArr, 90),
         precipArr,
+        // Debug: expose raw median for console verification
+        _maxMedian: pctile(maxArr, 50),
+        _minMedian: pctile(minArr, 50),
         precipProbs: PRECIP_THRESHOLDS.map(thresh =>
           precipArr.length
             ? Math.round(precipArr.filter(v => v >= thresh).length / precipArr.length * 100)
@@ -652,6 +678,14 @@ async function init() {
     buildMinTable(days);
     buildDewTable(days);
     buildRainTable(days);
+
+    // Console debug — open DevTools to verify medians match NWS
+    console.table(days.map(d => ({
+      date: d.date,
+      'High p50 (°F)': d._maxMedian?.toFixed(1),
+      'Low p50 (°F)':  d._minMedian?.toFixed(1),
+      'maxP10': d.maxP10?.toFixed(1), 'maxP90': d.maxP90?.toFixed(1),
+    })));
 
     ['sec-max','sec-min','sec-dew','sec-rain'].forEach(id =>
       document.getElementById(id).style.display=''
