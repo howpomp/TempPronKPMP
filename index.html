@@ -458,136 +458,67 @@ const dayName  = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekda
 const shortDt  = d => { const[,m,day]=d.split('-'); return `${m}/${day}`; };
 const isWeekend = d => { const w=new Date(d+'T12:00:00').getDay(); return w===0||w===6; };
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
+// Convert Celsius → Fahrenheit
+const toF = c => (c * 9/5) + 32;
+
+// ── Fetch — uses daily endpoint for true calendar min/max per member ──────────
 async function fetchEnsemble() {
   const url = new URL('https://ensemble-api.open-meteo.com/v1/ensemble');
   url.searchParams.set('latitude', LAT);
   url.searchParams.set('longitude', LON);
-  // NOTE: Do NOT pass temperature_unit — the ensemble endpoint may silently
-  // ignore it for some models. We request raw (Celsius) and convert ourselves.
+  // Request Celsius explicitly — we convert ourselves to avoid silent unit bugs
   url.searchParams.set('precipitation_unit', 'inch');
   url.searchParams.set('forecast_days', '7');
   url.searchParams.set('models', 'gfs_seamless,ecmwf_ifs04,icon_seamless,gem_seamless');
-  url.searchParams.set('hourly', 'temperature_2m,dewpoint_2m,precipitation');
+  // Daily variables: true calendar max/min computed by the model, not sliced hourly
+  url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,dewpoint_2m_max,precipitation_sum');
   url.searchParams.set('timezone', 'America/New_York');
   const res = await fetch(url.toString(), {signal: AbortSignal.timeout(25000)});
   if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
   return res.json();
 }
 
-// Convert Celsius → Fahrenheit
-const toF = c => (c * 9/5) + 32;
-
-// ── Process ───────────────────────────────────────────────────────────────────
+// ── Process — daily endpoint gives one value per member per day ───────────────
 function processData(data) {
-  const times = data.hourly.time;
+  if (!data.daily) throw new Error('No daily data returned from Open-Meteo.');
 
-  const tempKeys  = Object.keys(data.hourly).filter(k => k.startsWith('temperature_2m_'));
-  const dewKeys   = Object.keys(data.hourly).filter(k => k.startsWith('dewpoint_2m_'));
-  const precipKeys= Object.keys(data.hourly).filter(k => k.startsWith('precipitation_'));
+  const dates = data.daily.time; // ['2026-03-30', '2026-03-31', ...]
 
-  // Detect if API returned Celsius (Open-Meteo ensemble endpoint often ignores
-  // temperature_unit for multi-model requests). A South FL temp above 60°C is
-  // impossible, so if p50 of any temp array exceeds 60 we're already in °F.
-  // More reliably: check the hourly_units metadata field if present.
-  const reportedUnit = data.hourly_units?.temperature_2m ?? '';
+  // Collect per-variable member arrays
+  // Keys like: temperature_2m_max_gfs_seamless, temperature_2m_max_member01_ncep_gefs, etc.
+  const maxKeys    = Object.keys(data.daily).filter(k => k.startsWith('temperature_2m_max_'));
+  const minKeys    = Object.keys(data.daily).filter(k => k.startsWith('temperature_2m_min_'));
+  const dewKeys    = Object.keys(data.daily).filter(k => k.startsWith('dewpoint_2m_max_'));
+  const precipKeys = Object.keys(data.daily).filter(k => k.startsWith('precipitation_sum_'));
+
+  if (!maxKeys.length) throw new Error('No ensemble temperature_2m_max data returned.');
+
+  // Detect units from metadata
+  const reportedUnit = data.daily_units?.temperature_2m_max ?? '';
   const needsConvert = reportedUnit === '°C' || reportedUnit === 'C' ||
-    // Fallback heuristic: median of first available temp array should be ~21–32°C
-    // for South FL. If it's > 50 it's already Fahrenheit.
     (() => {
-      const firstKey = tempKeys[0];
-      if (!firstKey) return false;
-      const sample = data.hourly[firstKey].filter(v => v != null).slice(0, 48);
-      const med = sample.sort((a,b)=>a-b)[Math.floor(sample.length/2)];
-      return med !== null && med < 50; // below 50 → must be Celsius
+      // Heuristic: sample first member's first value — FL temps are never below 50°C
+      const sample = data.daily[maxKeys[0]]?.find(v => v != null);
+      return sample != null && sample < 50;
     })();
 
-  // Helper: get value and convert if needed
-  const getTemp = (key, i) => {
-    const v = data.hourly[key][i];
-    if (v == null) return null;
-    return needsConvert ? toF(v) : v;
-  };
+  const cv = v => (v == null ? null : needsConvert ? toF(v) : v);
 
-  if (!tempKeys.length) throw new Error('No ensemble temperature data returned.');
-
-  // KEY FIX: For each member key × each date, track hourly values separately
-  // so we can take the MAX (for highs) and MIN (for lows) per member per day,
-  // then build the ensemble distribution from those per-member extremes.
-  // Flattening all hourly values across members dilutes the tails and biases
-  // the median toward mid-day average temps rather than the actual daily extreme.
-
-  // Structure: byDate[date][memberKey] = { dayVals:[], nightVals:[], dewVals:[] }
-  const byDate = {};
-  // Also accumulate precip sums per member per day
-  const precipByDate = {}; // precipByDate[date][memberKey] = sum
-
-  times.forEach((t, i) => {
-    const date = t.split('T')[0];
-    const hour = parseInt(t.split('T')[1]);
-    if (!byDate[date]) byDate[date] = {};
-    if (!precipByDate[date]) precipByDate[date] = {};
-
-    // Daytime 10am–8pm → candidate hours for daily high
-    if (hour >= 10 && hour <= 20) {
-      tempKeys.forEach(k => {
-        const v = getTemp(k, i);
-        if (v == null) return;
-        if (!byDate[date][k]) byDate[date][k] = {dayVals:[], nightVals:[], dewVals:[]};
-        byDate[date][k].dayVals.push(v);
-      });
-      // Dew point: noon–8pm for afternoon peak humidity
-      if (hour >= 12) {
-        dewKeys.forEach(k => {
-          const v = getTemp(k, i);
-          if (v == null) return;
-          // Map dew key to same member slot as temp key (same model suffix)
-          const suffix = k.replace('dewpoint_2m_','');
-          const tKey = 'temperature_2m_' + suffix;
-          if (!byDate[date][tKey]) byDate[date][tKey] = {dayVals:[], nightVals:[], dewVals:[]};
-          byDate[date][tKey].dewVals.push(v);
-        });
-      }
-    }
-    // Overnight: 8pm–9am → candidate hours for daily low
-    if (hour <= 9 || hour >= 20) {
-      tempKeys.forEach(k => {
-        const v = getTemp(k, i);
-        if (v == null) return;
-        if (!byDate[date][k]) byDate[date][k] = {dayVals:[], nightVals:[], dewVals:[]};
-        byDate[date][k].nightVals.push(v);
-      });
-    }
-    // Precip: accumulate full-day sum per member
-    precipKeys.forEach(k => {
-      const v = data.hourly[k][i];
-      if (v != null) precipByDate[date][k] = (precipByDate[date][k] || 0) + v;
-    });
-  });
-
-  // Now reduce each member to its daily extreme, then build ensemble distribution
-  const dates = Object.keys(byDate).sort().slice(0, 7);
+  // For each date index, collect all member values into arrays
   return {
-    memberCount: tempKeys.length,
-    unitLabel: needsConvert ? 'C→F converted' : '°F native',
-    days: dates.map(date => {
-      const members = byDate[date];
-
-      // Per-member daily max (high), min (low), max dew point
-      const dailyMaxArr = [], dailyMinArr = [], dailyDewArr = [];
-      Object.values(members).forEach(m => {
-        if (m.dayVals.length)   dailyMaxArr.push(Math.max(...m.dayVals));
-        if (m.nightVals.length) dailyMinArr.push(Math.min(...m.nightVals));
-        if (m.dewVals.length)   dailyDewArr.push(Math.max(...m.dewVals));
-      });
-
-      const precipArr = Object.values(precipByDate[date] || {}).sort((a,b)=>a-b);
+    memberCount: maxKeys.length,
+    unitLabel: needsConvert ? 'C→F' : '°F',
+    days: dates.slice(0, 7).map((date, di) => {
+      const maxArr    = maxKeys.map(k    => cv(data.daily[k][di])).filter(v => v != null);
+      const minArr    = minKeys.map(k    => cv(data.daily[k][di])).filter(v => v != null);
+      const dewArr    = dewKeys.map(k    => cv(data.daily[k][di])).filter(v => v != null);
+      const precipArr = precipKeys.map(k =>    data.daily[k][di] ).filter(v => v != null).sort((a,b)=>a-b);
 
       return {
         date,
-        maxP10: pctile(dailyMaxArr, 10), maxP50: pctile(dailyMaxArr, 50), maxP90: pctile(dailyMaxArr, 90),
-        minP10: pctile(dailyMinArr, 10), minP50: pctile(dailyMinArr, 50), minP90: pctile(dailyMinArr, 90),
-        dewP10: pctile(dailyDewArr, 10), dewP50: pctile(dailyDewArr, 50), dewP90: pctile(dailyDewArr, 90),
+        maxP10: pctile(maxArr, 10), maxP50: pctile(maxArr, 50), maxP90: pctile(maxArr, 90),
+        minP10: pctile(minArr, 10), minP50: pctile(minArr, 50), minP90: pctile(minArr, 90),
+        dewP10: pctile(dewArr, 10), dewP50: pctile(dewArr, 50), dewP90: pctile(dewArr, 90),
         precipArr,
         precipProbs: PRECIP_THRESHOLDS.map(thresh =>
           precipArr.length
@@ -727,35 +658,36 @@ async function init() {
     );
     document.getElementById('loading').style.display='none';
 
-    const mLabel = `${memberCount} models`;
+    const mLabel = `${memberCount} members`;
     ['max-members','min-members','dew-members','rain-members'].forEach(id =>
       document.getElementById(id).textContent=mLabel
     );
 
-    // Build model run timestamp from API metadata if available
-    let runInfo = '';
-    try {
-      // Open-Meteo returns model_run_time or similar in some responses
-      const modelTimes = raw.hourly?.time?.[0] ?? '';
-      // Use the first forecast hour as a proxy for data vintage
-      // Also check for any run metadata fields
-      const genTime = raw.generationtime_ms
-        ? `Generated in ${(raw.generationtime_ms/1000).toFixed(1)}s`
-        : '';
-      // Show which models were actually returned
-      const returnedModels = Object.keys(raw.hourly)
-        .filter(k => k.startsWith('temperature_2m_'))
-        .map(k => k.replace('temperature_2m_','').replace('_seamless','').replace('_ifs04','').toUpperCase())
-        .join(', ');
-      runInfo = returnedModels ? ` · ${returnedModels}` : '';
-    } catch(e) {}
+    // Clean model family summary — collapse individual member names into families
+    // e.g. "member01_ncep_gefs", "member02_ncep_gefs" → "GFS (31 members)"
+    const familyCounts = {};
+    Object.keys(raw.daily)
+      .filter(k => k.startsWith('temperature_2m_max_'))
+      .forEach(k => {
+        const suffix = k.replace('temperature_2m_max_','');
+        // Map to readable family name
+        let family = 'Other';
+        if (suffix.includes('ncep_gefs') || suffix === 'gfs_seamless') family = 'GFS/GEFS';
+        else if (suffix.includes('ecmwf') || suffix === 'ecmwf_ifs04') family = 'ECMWF';
+        else if (suffix.includes('icon'))  family = 'ICON';
+        else if (suffix.includes('gem'))   family = 'GEM';
+        familyCounts[family] = (familyCounts[family] || 0) + 1;
+      });
+    const modelSummary = Object.entries(familyCounts)
+      .map(([name, count]) => `${name}${count > 1 ? ` ×${count}` : ''}`)
+      .join(' · ');
 
     const now = new Date().toLocaleString('en-US',{
-      month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'
+      month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZoneName:'short'
     });
     setStatus('live',
-      `Live · ${memberCount} ensemble members · ${unitLabel}`,
-      `Updated ${now}${runInfo}`
+      `Live · ${memberCount} members · ${unitLabel}`,
+      `Updated ${now} · ${modelSummary}`
     );
 
   } catch(err) {
