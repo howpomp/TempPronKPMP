@@ -149,6 +149,34 @@
   .badge-warm { background:#3a1a00; color:#ffaa44; border:1px solid #6a3a00; }
   .badge-cool { background:#001a3a; color:#44aaff; border:1px solid #003a6a; }
 
+  /* Confidence badges in column headers */
+  .conf-badge {
+    display:inline-block;
+    font-family:'Share Tech Mono',monospace;
+    font-size:0.58rem; letter-spacing:0.07em;
+    padding:1px 5px; border-radius:3px;
+    margin-top:3px; font-weight:700;
+  }
+  .conf-high { background:#0a2a10; color:#40e080; border:1px solid #206030; }
+  .conf-med  { background:#2a2000; color:#e0c040; border:1px solid #504000; }
+  .conf-low  { background:#2a0808; color:#e06040; border:1px solid #602020; }
+
+  /* P50 pinned summary row */
+  tbody tr.p50-row td {
+    background:#0d1a2a !important;
+    border-top:2px solid #2a4060 !important;
+    border-bottom:2px solid #2a4060 !important;
+    font-family:'Rajdhani',sans-serif;
+    font-size:1.05rem; font-weight:700;
+    letter-spacing:0.03em;
+  }
+  tbody tr.p50-row td:first-child {
+    color:#88ccff; font-family:'Share Tech Mono',monospace;
+    font-size:0.72rem; font-weight:400; background:#0d1a2a !important;
+  }
+  tbody tr.p50-row td.p50-val { color:#fff; }
+  tbody tr.p50-row + tr td { border-top:1px solid #1a3050; }
+
   /* ── Table ── */
   .table-wrap {
     overflow-x:auto;
@@ -735,24 +763,61 @@ function processData(data) {
   };
 }
 
-// ── Header builder ────────────────────────────────────────────────────────────
-function buildHeaders(trId, days) {
+// ── Confidence spread helper ──────────────────────────────────────────────────
+// spread thresholds: 'temp' (°F) or 'wind' (mph)
+function confidenceLabel(p10, p90, unit) {
+  if (p10 == null || p90 == null) return null;
+  const spread = p90 - p10;
+  const u = unit || 'temp';
+  // Temp: HIGH ≤6°F, MED ≤12°F, LOW >12°F
+  // Wind: HIGH ≤8 mph, MED ≤15 mph, LOW >15 mph
+  const [hiThresh, medThresh] = u === 'wind' ? [8, 15] : [6, 12];
+  const spreadStr = u === 'wind' ? `${spread.toFixed(1)} mph` : `${spread.toFixed(1)}°F`;
+  if (spread <= hiThresh)  return { label:'HIGH', cls:'conf-high', title:`Spread: ${spreadStr}` };
+  if (spread <= medThresh) return { label:'MED',  cls:'conf-med',  title:`Spread: ${spreadStr}` };
+  return                          { label:'LOW',  cls:'conf-low',  title:`Spread: ${spreadStr}` };
+}
+
+// ── Header builder — optional confidence badges ───────────────────────────────
+// confData: array of {p10, p90} per day, or null to skip badges
+function buildHeaders(trId, days, confData, confUnit) {
   const tr = document.getElementById(trId);
   while (tr.children.length > 1) tr.removeChild(tr.lastChild);
   days.forEach((d, i) => {
     const th = document.createElement('th');
     if (isWeekend(d.date)) th.className = 'weekend';
+    let confBadge = '';
+    if (confData) {
+      const c = confData[i];
+      const conf = c ? confidenceLabel(c.p10, c.p90, confUnit) : null;
+      if (conf) {
+        confBadge = `<span class="conf-badge ${conf.cls}" title="${conf.title}">${conf.label}</span>`;
+      }
+    }
     th.innerHTML = `<span class="day-num">Day ${i+1}</span>`+
                    `<span class="day-name">${dayName(d.date)}</span>`+
-                   `<span class="day-date">${shortDt(d.date)}</span>`;
+                   `<span class="day-date">${shortDt(d.date)}</span>`+
+                   (confBadge ? `<span style="display:block;margin-top:2px">${confBadge}</span>` : '');
     tr.appendChild(th);
   });
 }
 
 // ── Table builders ────────────────────────────────────────────────────────────
 function buildMaxTable(days) {
-  buildHeaders('headerMax', days);
+  // Pass max temp spread for confidence badges
+  buildHeaders('headerMax', days, days.map(d => ({p10: d.maxP10, p90: d.maxP90})));
   const tb = document.getElementById('bodyMax'); tb.innerHTML='';
+
+  // P50 pinned row — "Most Likely High"
+  const trP50 = document.createElement('tr');
+  trP50.className = 'p50-row';
+  trP50.innerHTML = '<td>Most Likely High</td>';
+  days.forEach(d => {
+    const v = d.maxP50;
+    trP50.innerHTML += `<td class="p50-val">${v != null ? Math.round(v)+'°F' : '—'}</td>`;
+  });
+  tb.appendChild(trP50);
+
   MAX_THRESHOLDS.forEach(thresh => {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>≥ ${thresh}°F</td>`;
@@ -773,8 +838,19 @@ function buildMinTable(days) {
       ? '<span class="season-badge badge-warm">WARM SEASON</span>'
       : '<span class="season-badge badge-cool">COOL SEASON</span>';
 
-  buildHeaders('headerMin', days);
+  buildHeaders('headerMin', days, days.map(d => ({p10: d.minP10, p90: d.minP90})));
   const tb = document.getElementById('bodyMin'); tb.innerHTML='';
+
+  // P50 pinned row — "Most Likely Low"
+  const trP50 = document.createElement('tr');
+  trP50.className = 'p50-row';
+  trP50.innerHTML = '<td>Most Likely Low</td>';
+  days.forEach(d => {
+    const v = d.minP50;
+    trP50.innerHTML += `<td class="p50-val">${v != null ? Math.round(v)+'°F' : '—'}</td>`;
+  });
+  tb.appendChild(trP50);
+
   thresholds.forEach(thresh => {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>≤ ${thresh}°F</td>`;
@@ -788,7 +864,7 @@ function buildMinTable(days) {
 }
 
 function buildDewTable(days) {
-  buildHeaders('headerDew', days);
+  buildHeaders('headerDew', days, days.map(d => ({p10: d.dewP10, p90: d.dewP90})));
   const tb = document.getElementById('bodyDew'); tb.innerHTML='';
   DEW_THRESHOLDS.forEach(thresh => {
     const tr = document.createElement('tr');
@@ -808,7 +884,7 @@ function buildDewTable(days) {
 }
 
 function buildRainTable(days) {
-  buildHeaders('headerRain', days);
+  buildHeaders('headerRain', days, null);
   const tb = document.getElementById('bodyRain'); tb.innerHTML='';
 
   // Helper: format inches value — "T" for trace, "0.00"" for dry, normal for wet
@@ -885,7 +961,10 @@ function buildRainTable(days) {
 }
 
 function buildWindTable(days) {
-  buildHeaders('headerWind', days);
+  buildHeaders('headerWind', days,
+    days.map(d => ({ p10: pctile(d.gustArr, 10), p90: pctile(d.gustArr, 90) })),
+    'wind'
+  );
   const tb = document.getElementById('bodyWind'); tb.innerHTML='';
 
   // Exceedance probability rows
