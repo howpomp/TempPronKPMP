@@ -359,6 +359,72 @@
   }
   footer a { color:#3a6090; text-decoration:none; }
   footer a:hover { color:var(--accent); }
+
+  /* ── Rain info tooltip ── */
+  .rain-info-btn {
+    cursor:pointer; font-size:0.9rem;
+    opacity:0.6; transition:opacity 0.2s;
+    margin-left:2px;
+  }
+  .rain-info-btn:hover { opacity:1; }
+  .rain-info-box {
+    width:100%; background:#0a1e2e;
+    border:1px solid #1a4060; border-radius:6px;
+    padding:10px 14px; font-size:0.72rem;
+    color:#88aacc; line-height:1.6;
+    margin-bottom:8px; position:relative;
+  }
+  .rain-info-box strong { color:#aaccee; }
+  .rain-info-box em { color:#88ddbb; font-style:normal; font-weight:500; }
+  .rain-info-close {
+    position:absolute; top:8px; right:10px;
+    cursor:pointer; color:var(--muted); font-size:0.8rem;
+  }
+  .rain-info-close:hover { color:var(--text); }
+
+  /* ── Rain Threat Level row ── */
+  tbody tr.threat-row td {
+    background:#0d1a2a !important;
+    border-top:2px solid #1a3050 !important;
+    border-bottom:2px solid #1a3050 !important;
+    font-family:'Rajdhani',sans-serif;
+    font-size:0.9rem; font-weight:700;
+    letter-spacing:0.05em; text-transform:uppercase;
+    height:36px;
+  }
+  tbody tr.threat-row td:first-child {
+    color:#88aacc; font-family:'Share Tech Mono',monospace;
+    font-size:0.72rem; font-weight:400;
+    text-transform:none; letter-spacing:0;
+    background:#0d1a2a !important;
+  }
+  .threat-minimal { background:#0f1820 !important; color:#3a5570; }
+  .threat-low     { background:#0e2818 !important; color:#40c870; }
+  .threat-mod     { background:#1e3008 !important; color:#90e040; }
+  .threat-elev    { background:#2a2000 !important; color:#e0c040; }
+  .threat-high    { background:#2a0808 !important; color:#e06040; }
+
+  /* ── Outlier / wettest member row — de-emphasized ── */
+  tbody tr.outlier-row td {
+    opacity:0.65;
+    font-style:italic;
+  }
+  tbody tr.outlier-row td:first-child {
+    font-style:italic; opacity:0.65;
+  }
+
+  /* ── Timestamp block ── */
+  .timestamp-block {
+    width:100%; max-width:960px;
+    background:#0d1520; border:1px solid #1a2a3a;
+    border-radius:6px; padding:8px 14px;
+    font-family:'Share Tech Mono',monospace;
+    font-size:0.68rem; color:var(--muted);
+    margin-bottom:20px; line-height:1.8;
+    display:none;
+  }
+  .timestamp-block span { color:#6a9abf; margin-right:16px; }
+  .timestamp-block strong { color:#88aacc; }
 </style>
 </head>
 <body>
@@ -386,6 +452,15 @@
 
 <div id="loading"><div class="spinner"></div>Fetching ensemble forecast data…</div>
 <div id="error-msg"></div>
+
+<!-- Timestamp block -->
+<div class="timestamp-block" id="timestampBlock">
+  <strong>Data timestamps:</strong><br>
+  <span id="ts-fetched"></span>
+  <span id="ts-anchor"></span>
+  <span id="ts-gentime"></span>
+  <span id="ts-note" style="color:#3a5060;font-style:italic"></span>
+</div>
 
 <!-- HIGH TEMP -->
 <div class="section" id="sec-max" style="display:none">
@@ -479,18 +554,27 @@
 <!-- PRECIP -->
 <div class="section" id="sec-rain" style="display:none">
   <div class="section-header">
-    <div class="section-icon icon-rain">🟢</div>
-    <span class="section-title teal">Precipitation Probability</span>
+    <div class="section-icon icon-rain">🌧️</div>
+    <span class="section-title teal">Rain Signal</span>
+    <span class="rain-info-btn" id="rainInfoBtn" title="About this table">ℹ️</span>
     <span class="section-sub" id="rain-members"></span>
+  </div>
+  <div class="rain-info-box" id="rainInfoBox" style="display:none">
+    <strong>About this table:</strong> Rain Signal shows how many ensemble members produce measurable
+    precipitation out of the total valid members for that day. This is <em>not</em> official NWS PoP.
+    Ensemble member counts reflect raw model agreement — days with weak or scattered signals will show
+    low member counts even if some rain is possible. 3σ upper bound is computed only from wet members (>0.01")
+    and is unreliable when fewer than 15 members are wet.
+    <span class="rain-info-close" onclick="document.getElementById('rainInfoBox').style.display='none'">✕</span>
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr id="headerRain"><th>Threshold</th></tr></thead>
+      <thead><tr id="headerRain"><th>Metric</th></tr></thead>
       <tbody id="bodyRain"></tbody>
     </table>
   </div>
   <div class="legend" id="legendRain">
-    <span class="legend-label">Probability:</span>
+    <span class="legend-label">Member %:</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg0)"></span>0%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg1)"></span>1–10%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg2)"></span>11–19%</span>
@@ -502,6 +586,7 @@
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg12)"></span>70–79%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg14)"></span>80–89%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg16)"></span>≥90%</span>
+    <span style="font-size:0.65rem;color:var(--muted);margin-left:6px">· Amount rows colored by inches</span>
   </div>
 </div>
 
@@ -552,11 +637,20 @@ const MAX_THRESHOLDS = range(100, 75, -2);
 // Dew point: ≥60°F to ≥78°F in 2°F steps (descending)
 const DEW_THRESHOLDS = range(78, 60, -2);
 
-// Precip: PoP (0.01") + quarter-inch exceedance thresholds
-const PRECIP_THRESHOLDS = [0.01, 0.25, 0.50, 0.75, 1.00, 1.50, 2.00];
+// Precip exceedance thresholds — 0.01" now handled separately as member count
+const PRECIP_THRESHOLDS = [0.25, 0.50, 0.75, 1.00, 1.50, 2.00];
 
 // Wind gusts: ≥15 to ≥40 mph in 5 mph steps
 const GUST_THRESHOLDS = [15, 20, 25, 30, 35, 40];
+
+// Rain info button toggle
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('rainInfoBtn');
+  const box = document.getElementById('rainInfoBox');
+  if (btn && box) btn.addEventListener('click', () => {
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  });
+});
 
 function range(start, stop, step) {
   const out = [];
@@ -735,6 +829,45 @@ function processData(data) {
       const precipArr = precipKeys.map(k => converted[k]?.[di]).filter(v => v != null).sort((a,b)=>a-b);
       const gustArr   = gustKeys.map(k   => converted[k]?.[di]).filter(v => v != null).sort((a,b)=>a-b);
 
+      // ── Rich rain stats ──────────────────────────────────────────────────────
+      const totalMembers = precipArr.length;
+      const wetArr       = precipArr.filter(v => v >= 0.01);   // any measurable rain
+      const heavyArr     = precipArr.filter(v => v >= 0.25);   // meaningful rain
+      const wetCount     = wetArr.length;
+      const heavyCount   = heavyArr.length;
+
+      // 3σ upper bound computed ONLY from wet members — more stable than raw max
+      // Falls back to null if <15 wet members (statistically unreliable)
+      let sigma3 = null;
+      if (wetArr.length >= 15) {
+        const mean = wetArr.reduce((s,v) => s+v, 0) / wetArr.length;
+        const variance = wetArr.reduce((s,v) => s + (v-mean)**2, 0) / wetArr.length;
+        sigma3 = mean + 3 * Math.sqrt(variance);
+      }
+
+      // Rain Threat Level — seasonal-aware thresholds
+      const month = new Date().getMonth() + 1;
+      const warmSeason = month >= 5 && month <= 9;
+      const wetPct   = totalMembers ? wetCount   / totalMembers : 0;
+      const heavyPct = totalMembers ? heavyCount / totalMembers : 0;
+      const p90v     = pctile(precipArr, 90) ?? 0;
+
+      // Warm season: shift thresholds up slightly since scattered storms are common
+      let threatLevel;
+      if (warmSeason) {
+        if      (wetPct < 0.20 && heavyPct < 0.08 && p90v < 0.15) threatLevel = 'Minimal';
+        else if (wetPct < 0.40 && heavyPct < 0.25 && p90v < 0.35) threatLevel = 'Low';
+        else if (wetPct < 0.60 && heavyPct < 0.45 && p90v < 0.60) threatLevel = 'Moderate';
+        else if (wetPct < 0.80 && heavyPct < 0.65 && p90v < 1.10) threatLevel = 'Elevated';
+        else threatLevel = 'High';
+      } else {
+        if      (wetPct < 0.15 && heavyPct < 0.05 && p90v < 0.10) threatLevel = 'Minimal';
+        else if (wetPct < 0.35 && heavyPct < 0.20 && p90v < 0.25) threatLevel = 'Low';
+        else if (wetPct < 0.55 && heavyPct < 0.40 && p90v < 0.50) threatLevel = 'Moderate';
+        else if (wetPct < 0.75 && heavyPct < 0.60 && p90v < 1.00) threatLevel = 'Elevated';
+        else threatLevel = 'High';
+      }
+
       return {
         date,
         maxP10: pctile(maxArr, 10), maxP50: pctile(maxArr, 50), maxP90: pctile(maxArr, 90),
@@ -743,6 +876,10 @@ function processData(data) {
         precipArr, gustArr,
         _maxMedian: pctile(maxArr, 50),
         _minMedian: pctile(minArr, 50),
+        // Rain signal stats
+        totalMembers, wetCount, heavyCount, wetPct, heavyPct,
+        threatLevel, sigma3,
+        wetSigmaNote: wetArr.length < 15 ? `only ${wetArr.length} wet mbrs` : null,
         precipProbs: PRECIP_THRESHOLDS.map(thresh =>
           precipArr.length
             ? Math.round(precipArr.filter(v => v >= thresh).length / precipArr.length * 100)
@@ -769,13 +906,22 @@ function confidenceLabel(p10, p90, unit) {
   if (p10 == null || p90 == null) return null;
   const spread = p90 - p10;
   const u = unit || 'temp';
-  // Temp: HIGH ≤6°F, MED ≤12°F, LOW >12°F
-  // Wind: HIGH ≤8 mph, MED ≤15 mph, LOW >15 mph
-  const [hiThresh, medThresh] = u === 'wind' ? [8, 15] : [6, 12];
-  const spreadStr = u === 'wind' ? `${spread.toFixed(1)} mph` : `${spread.toFixed(1)}°F`;
-  if (spread <= hiThresh)  return { label:'HIGH', cls:'conf-high', title:`Spread: ${spreadStr}` };
-  if (spread <= medThresh) return { label:'MED',  cls:'conf-med',  title:`Spread: ${spreadStr}` };
-  return                          { label:'LOW',  cls:'conf-low',  title:`Spread: ${spreadStr}` };
+  let hiThresh, medThresh, spreadStr;
+  if (u === 'wind') {
+    [hiThresh, medThresh] = [8, 15];
+    spreadStr = `${spread.toFixed(1)} mph`;
+  } else if (u === 'rain') {
+    // synthetic spread: 0=certain dry/wet, 100=50/50 split
+    // HIGH = <30 (confident either way), MED = 30-50, LOW = >50 (near coin flip)
+    [hiThresh, medThresh] = [30, 50];
+    spreadStr = `${Math.round(spread/2)}% wet members`;
+  } else {
+    [hiThresh, medThresh] = [6, 12];
+    spreadStr = `${spread.toFixed(1)}°F`;
+  }
+  if (spread <= hiThresh)  return { label:'HIGH', cls:'conf-high', title:`Confidence: ${spreadStr}` };
+  if (spread <= medThresh) return { label:'MED',  cls:'conf-med',  title:`Confidence: ${spreadStr}` };
+  return                          { label:'LOW',  cls:'conf-low',  title:`Confidence: ${spreadStr}` };
 }
 
 // ── Header builder — optional confidence badges ───────────────────────────────
@@ -884,17 +1030,29 @@ function buildDewTable(days) {
 }
 
 function buildRainTable(days) {
-  buildHeaders('headerRain', days, null);
+  // Confidence badge based on wet/dry member split
+  // High = confidently dry (<15% wet) or confidently wet (>80% wet)
+  // Med = moderate agreement (15–35% or 65–80% wet)
+  // Low = maximum uncertainty (35–65% wet — coin flip)
+  const rainConfData = days.map(d => {
+    const p = d.wetPct * 100;
+    // Reuse p10/p90 interface — map wet% to a synthetic "spread"
+    // 0% wet or 100% wet = tight (spread=0), 50% wet = maximum spread (spread=100)
+    const synthetic_spread = 2 * Math.min(p, 100-p); // 0 at extremes, 100 at 50%
+    return { p10: 0, p90: synthetic_spread };
+  });
+  // Override confidence thresholds for rain (use wind unit slot but different meaning)
+  buildHeaders('headerRain', days, rainConfData, 'rain');
+
   const tb = document.getElementById('bodyRain'); tb.innerHTML='';
 
-  // Helper: format inches value — "T" for trace, "0.00"" for dry, normal for wet
-  function fmtIn(v) {
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  function fmtIn(v, note) {
     if (v == null) return '—';
-    if (v < 0.005) return v === 0 ? '0.00"' : 'T';
-    return v.toFixed(2) + '"';
+    const s = v < 0.005 ? (v === 0 ? '0.00"' : 'T') : v.toFixed(2) + '"';
+    return note ? `${s}*` : s;
   }
 
-  // Color scale for precip amounts (inches)
   function precipAmtClass(v) {
     if (v == null || v < 0.005) return 'g0';
     if (v < 0.10)  return 'g2';
@@ -907,17 +1065,100 @@ function buildRainTable(days) {
     return 'g16';
   }
 
-  // ── Probability rows ──
-  PRECIP_THRESHOLDS.forEach((thresh, idx) => {
-    if (thresh === 0.25) {
-      const div = document.createElement('tr');
-      div.className = 'divider';
-      div.innerHTML = `<td colspan="${days.length+1}">Exceedance — daily total</td>`;
-      tb.appendChild(div);
+  // ── Rain Threat Level row (pinned at top) ─────────────────────────────────
+  const threatMap = {
+    'Minimal':  { cls:'threat-minimal', emoji:'🌤️' },
+    'Low':      { cls:'threat-low',     emoji:'🌦️' },
+    'Moderate': { cls:'threat-mod',     emoji:'🌧️' },
+    'Elevated': { cls:'threat-elev',    emoji:'⛈️'  },
+    'High':     { cls:'threat-high',    emoji:'🌊'  },
+  };
+  const trThreat = document.createElement('tr');
+  trThreat.className = 'threat-row';
+  trThreat.innerHTML = '<td>Rain Threat</td>';
+  days.forEach(d => {
+    const t = threatMap[d.threatLevel] || threatMap['Minimal'];
+    trThreat.innerHTML += `<td class="${t.cls}" title="Based on ensemble member agreement">${t.emoji} ${d.threatLevel}</td>`;
+  });
+  tb.appendChild(trThreat);
+
+  // ── Rain Signal section ───────────────────────────────────────────────────
+  const sigDiv = document.createElement('tr');
+  sigDiv.className = 'divider';
+  sigDiv.innerHTML = `<td colspan="${days.length+1}">Rain Signal — ensemble member counts</td>`;
+  tb.appendChild(sigDiv);
+
+  // Wet members (>0.01")
+  const trWet = document.createElement('tr');
+  trWet.innerHTML = '<td>Wet members (>0.01")</td>';
+  days.forEach(d => {
+    const pct = Math.round(d.wetPct * 100);
+    trWet.innerHTML += `<td class="${gc(pct)}">${d.wetCount}/${d.totalMembers} (${pct}%)</td>`;
+  });
+  tb.appendChild(trWet);
+
+  // Heavier members (>0.25")
+  const trHeavy = document.createElement('tr');
+  trHeavy.innerHTML = '<td>Heavier members (>0.25")</td>';
+  days.forEach(d => {
+    const pct = Math.round(d.heavyPct * 100);
+    trHeavy.innerHTML += `<td class="${gc(pct)}">${d.heavyCount}/${d.totalMembers} (${pct}%)</td>`;
+  });
+  tb.appendChild(trHeavy);
+
+  // ── Ensemble Amounts section ──────────────────────────────────────────────
+  const amtDiv = document.createElement('tr');
+  amtDiv.className = 'divider';
+  amtDiv.innerHTML = `<td colspan="${days.length+1}">Ensemble amounts</td>`;
+  tb.appendChild(amtDiv);
+
+  // Median amount
+  const trMed = document.createElement('tr');
+  trMed.innerHTML = '<td>Median amount</td>';
+  days.forEach(d => {
+    trMed.innerHTML += `<td class="${precipAmtClass(d.precipP50)}">${fmtIn(d.precipP50)}</td>`;
+  });
+  tb.appendChild(trMed);
+
+  // 90th percentile
+  const trP90 = document.createElement('tr');
+  trP90.innerHTML = '<td>90th percentile</td>';
+  days.forEach(d => {
+    trP90.innerHTML += `<td class="${precipAmtClass(d.precipP90)}">${fmtIn(d.precipP90)}</td>`;
+  });
+  tb.appendChild(trP90);
+
+  // 3σ upper bound (wet members only)
+  const trSig = document.createElement('tr');
+  trSig.innerHTML = '<td>3σ upper bound <span style="font-size:0.65em;color:var(--muted)">(wet mbrs)</span></td>';
+  days.forEach(d => {
+    if (d.sigma3 == null) {
+      const note = d.wetSigmaNote || 'insufficient wet members';
+      trSig.innerHTML += `<td class="g1" style="font-size:0.75rem;color:var(--muted)" title="${note}">n/a*</td>`;
+    } else {
+      trSig.innerHTML += `<td class="${precipAmtClass(d.sigma3)}">${fmtIn(d.sigma3)}</td>`;
     }
+  });
+  tb.appendChild(trSig);
+
+  // Wettest member — de-emphasized outlier row
+  const trMax = document.createElement('tr');
+  trMax.className = 'outlier-row';
+  trMax.innerHTML = '<td>Wettest member <span style="font-size:0.65em;color:var(--muted)">(outlier)</span></td>';
+  days.forEach(d => {
+    trMax.innerHTML += `<td class="${precipAmtClass(d.precipMax)}">${fmtIn(d.precipMax)}</td>`;
+  });
+  tb.appendChild(trMax);
+
+  // ── Exceedance Detail section ─────────────────────────────────────────────
+  const excDiv = document.createElement('tr');
+  excDiv.className = 'divider';
+  excDiv.innerHTML = `<td colspan="${days.length+1}">Exceedance detail — member %</td>`;
+  tb.appendChild(excDiv);
+
+  PRECIP_THRESHOLDS.forEach((thresh, idx) => {
     const tr = document.createElement('tr');
-    const label = thresh < 0.05 ? 'PoP ≥ 0.01" (any rain)' : `≥ ${thresh.toFixed(2)}"`;
-    tr.innerHTML = `<td>${label}</td>`;
+    tr.innerHTML = `<td>≥ ${thresh.toFixed(2)}"</td>`;
     days.forEach(d => {
       const p = d.precipProbs[idx];
       if (p == null) { tr.innerHTML += '<td class="g0">—</td>'; return; }
@@ -926,38 +1167,15 @@ function buildRainTable(days) {
     tb.appendChild(tr);
   });
 
-  // ── Amount rows ──
-  const amtDivider = document.createElement('tr');
-  amtDivider.className = 'divider';
-  amtDivider.innerHTML = `<td colspan="${days.length+1}">Ensemble amounts</td>`;
-  tb.appendChild(amtDivider);
-
-  // Median amount
-  const trMed = document.createElement('tr');
-  trMed.innerHTML = '<td>Median amount</td>';
-  days.forEach(d => {
-    const v = d.precipP50;
-    trMed.innerHTML += `<td class="${precipAmtClass(v)}">${fmtIn(v)}</td>`;
-  });
-  tb.appendChild(trMed);
-
-  // 90th pct amount
-  const trP90 = document.createElement('tr');
-  trP90.innerHTML = '<td>90th pct amount</td>';
-  days.forEach(d => {
-    const v = d.precipP90;
-    trP90.innerHTML += `<td class="${precipAmtClass(v)}">${fmtIn(v)}</td>`;
-  });
-  tb.appendChild(trP90);
-
-  // Max member (worst-case)
-  const trMax = document.createElement('tr');
-  trMax.innerHTML = '<td>Max member 🌧️</td>';
-  days.forEach(d => {
-    const v = d.precipMax;
-    trMax.innerHTML += `<td class="${precipAmtClass(v)}">${fmtIn(v)}</td>`;
-  });
-  tb.appendChild(trMax);
+  // Sigma footnote if any day has insufficient wet members
+  const hasSigmaNote = days.some(d => d.sigma3 == null && d.wetCount > 0);
+  if (hasSigmaNote) {
+    const fnRow = document.createElement('tr');
+    fnRow.innerHTML = `<td colspan="${days.length+1}" style="font-size:0.65rem;color:var(--muted);padding:4px 16px;background:var(--panel);text-align:left;height:auto">
+      * 3σ requires ≥15 wet members to be statistically meaningful. n/a shown when fewer wet members exist.
+    </td>`;
+    tb.appendChild(fnRow);
+  }
 }
 
 function buildWindTable(days) {
@@ -1088,6 +1306,16 @@ async function init() {
       `Live · ${memberCount} members · ${unitLabel}`,
       `Updated ${now} · ${modelSummary}`
     );
+
+    // Populate timestamp block
+    const anchorDate = raw.daily?.time?.[0] ?? '—';
+    const genMs = raw.generationtime_ms;
+    const genStr = genMs ? `${(genMs/1000).toFixed(2)}s` : 'n/a';
+    document.getElementById('ts-fetched').textContent  = `🕐 Fetched: ${now}`;
+    document.getElementById('ts-anchor').textContent   = `📅 Forecast from: ${anchorDate}`;
+    document.getElementById('ts-gentime').textContent  = `⚙️ API gen time: ${genStr}`;
+    document.getElementById('ts-note').textContent     = 'Individual model run times not available from ensemble endpoint';
+    document.getElementById('timestampBlock').style.display = 'block';
 
   } catch(err) {
     console.error('[KPMP Prob]', err);
