@@ -360,7 +360,60 @@
   footer a { color:#3a6090; text-decoration:none; }
   footer a:hover { color:var(--accent); }
 
-  /* ── Rain info tooltip ── */
+  /* ── Temperature range rows ── */
+  tbody tr.range-row td {
+    background:#0a1620 !important;
+    font-family:'Share Tech Mono',monospace;
+    font-size:0.78rem; font-weight:400;
+    color:#6a9abf; height:34px;
+    letter-spacing:0;
+  }
+  tbody tr.range-row td:first-child {
+    color:#5a8aaa; background:#0a1620 !important;
+    font-size:0.72rem;
+  }
+  tbody tr.members-row td {
+    background:#081420 !important;
+    font-family:'Share Tech Mono',monospace;
+    font-size:0.72rem; font-weight:400;
+    color:#3a5a72; font-style:italic; height:30px;
+    letter-spacing:0;
+  }
+  tbody tr.members-row td:first-child {
+    color:#2a4a60; background:#081420 !important;
+    font-size:0.68rem;
+  }
+
+  /* ── Dry member scale (inverted — more saturated = confidently dry) ── */
+  /* Uses blue-gray ramp: low dry count = dark/muted, high dry count = brighter */
+  .dry0  {background:#0f1820;color:#2a3a48;}
+  .dry1  {background:#101c28;color:#3a4e60;}
+  .dry2  {background:#102030;color:#4a6070;}
+  .dry3  {background:#102838;color:#5a7080;}
+  .dry4  {background:#103040;color:#6a8090;}
+  .dry5  {background:#103850;color:#7a90a0;}
+  .dry6  {background:#0e4060;color:#8aaab8;}
+  .dry7  {background:#0c4870;color:#9abcc8;}
+  .dry8  {background:#0a5080;color:#aaccd8;}
+  .dry9  {background:#085890;color:#baded8;}
+  .dry10 {background:#0660a0;color:#caeee8;}
+  .dry11 {background:#0470b8;color:#daf8f8;}
+  .dry12 {background:#0280c8;color:#fff;}
+  .dry13 {background:#0090d8;color:#fff;}
+  .dry14 {background:#00a0e8;color:#fff;}
+  .dry15 {background:#00b0f0;color:#fff;}
+  .dry16 {background:#20c8ff;color:#fff;text-shadow:0 0 8px rgba(0,200,255,.5);}
+
+  /* ── Trace member scale — neutral gray, trace amounts are neither good nor bad ── */
+  .trace0 {background:#0f1820;color:#2a3a48;}
+  .trace1 {background:#161e28;color:#3a4858;}
+  .trace2 {background:#1e2630;color:#4a5868;}
+  .trace3 {background:#262e3a;color:#5a6878;}
+  .trace4 {background:#2e3848;color:#6a7888;}
+  .trace5 {background:#384258;color:#7a8898;}
+  .trace6 {background:#404c68;color:#8a9aa8;}
+  .trace7 {background:#4a5878;color:#9aaab8;}
+  .trace8 {background:#526488;color:#aabac8;}
   .rain-info-btn {
     cursor:pointer; font-size:0.9rem;
     opacity:0.6; transition:opacity 0.2s;
@@ -868,16 +921,31 @@ function processData(data) {
         else threatLevel = 'High';
       }
 
+      // ── Member range (true min/max across all members) ───────────────────────
+      const maxMin = maxArr.length ? Math.min(...maxArr) : null;
+      const maxMax = maxArr.length ? Math.max(...maxArr) : null;
+      const minMin = minArr.length ? Math.min(...minArr) : null;
+      const minMax = minArr.length ? Math.max(...minArr) : null;
+
+      // ── Precip three-way split ────────────────────────────────────────────────
+      const dryArr   = precipArr.filter(v => v === 0);              // exactly 0.00"
+      const traceArr = precipArr.filter(v => v > 0 && v < 0.01);   // >0.00" but <0.01"
+      const dryCount   = dryArr.length;
+      const traceCount = traceArr.length;
+
       return {
         date,
         maxP10: pctile(maxArr, 10), maxP50: pctile(maxArr, 50), maxP90: pctile(maxArr, 90),
+        maxMin, maxMax,
         minP10: pctile(minArr, 10), minP50: pctile(minArr, 50), minP90: pctile(minArr, 90),
+        minMin, minMax,
         dewP10: pctile(dewArr, 10), dewP50: pctile(dewArr, 50), dewP90: pctile(dewArr, 90),
         precipArr, gustArr,
         _maxMedian: pctile(maxArr, 50),
         _minMedian: pctile(minArr, 50),
         // Rain signal stats
         totalMembers, wetCount, heavyCount, wetPct, heavyPct,
+        dryCount, traceCount,
         threatLevel, sigma3,
         wetSigmaNote: wetArr.length < 15 ? `only ${wetArr.length} wet mbrs` : null,
         precipProbs: PRECIP_THRESHOLDS.map(thresh =>
@@ -950,11 +1018,10 @@ function buildHeaders(trId, days, confData, confUnit) {
 
 // ── Table builders ────────────────────────────────────────────────────────────
 function buildMaxTable(days) {
-  // Pass max temp spread for confidence badges
   buildHeaders('headerMax', days, days.map(d => ({p10: d.maxP10, p90: d.maxP90})));
   const tb = document.getElementById('bodyMax'); tb.innerHTML='';
 
-  // P50 pinned row — "Most Likely High"
+  // P50 pinned row
   const trP50 = document.createElement('tr');
   trP50.className = 'p50-row';
   trP50.innerHTML = '<td>Most Likely High</td>';
@@ -963,6 +1030,26 @@ function buildMaxTable(days) {
     trP50.innerHTML += `<td class="p50-val">${v != null ? Math.round(v)+'°F' : '—'}</td>`;
   });
   tb.appendChild(trP50);
+
+  // Range (p10–p90)
+  const trRange = document.createElement('tr');
+  trRange.className = 'range-row';
+  trRange.innerHTML = '<td>Range (p10–p90)</td>';
+  days.forEach(d => {
+    if (d.maxP10 == null) { trRange.innerHTML += '<td>—</td>'; return; }
+    trRange.innerHTML += `<td>${Math.round(d.maxP10)}°–${Math.round(d.maxP90)}°F</td>`;
+  });
+  tb.appendChild(trRange);
+
+  // All members (true min–max)
+  const trMembers = document.createElement('tr');
+  trMembers.className = 'members-row';
+  trMembers.innerHTML = '<td>All members</td>';
+  days.forEach(d => {
+    if (d.maxMin == null) { trMembers.innerHTML += '<td>—</td>'; return; }
+    trMembers.innerHTML += `<td>${Math.round(d.maxMin)}°–${Math.round(d.maxMax)}°F</td>`;
+  });
+  tb.appendChild(trMembers);
 
   MAX_THRESHOLDS.forEach(thresh => {
     const tr = document.createElement('tr');
@@ -987,7 +1074,7 @@ function buildMinTable(days) {
   buildHeaders('headerMin', days, days.map(d => ({p10: d.minP10, p90: d.minP90})));
   const tb = document.getElementById('bodyMin'); tb.innerHTML='';
 
-  // P50 pinned row — "Most Likely Low"
+  // P50 pinned row
   const trP50 = document.createElement('tr');
   trP50.className = 'p50-row';
   trP50.innerHTML = '<td>Most Likely Low</td>';
@@ -996,6 +1083,26 @@ function buildMinTable(days) {
     trP50.innerHTML += `<td class="p50-val">${v != null ? Math.round(v)+'°F' : '—'}</td>`;
   });
   tb.appendChild(trP50);
+
+  // Range (p10–p90)
+  const trRange = document.createElement('tr');
+  trRange.className = 'range-row';
+  trRange.innerHTML = '<td>Range (p10–p90)</td>';
+  days.forEach(d => {
+    if (d.minP10 == null) { trRange.innerHTML += '<td>—</td>'; return; }
+    trRange.innerHTML += `<td>${Math.round(d.minP10)}°–${Math.round(d.minP90)}°F</td>`;
+  });
+  tb.appendChild(trRange);
+
+  // All members (true min–max)
+  const trMembers = document.createElement('tr');
+  trMembers.className = 'members-row';
+  trMembers.innerHTML = '<td>All members</td>';
+  days.forEach(d => {
+    if (d.minMin == null) { trMembers.innerHTML += '<td>—</td>'; return; }
+    trMembers.innerHTML += `<td>${Math.round(d.minMin)}°–${Math.round(d.minMax)}°F</td>`;
+  });
+  tb.appendChild(trMembers);
 
   thresholds.forEach(thresh => {
     const tr = document.createElement('tr');
@@ -1027,6 +1134,18 @@ function buildDewTable(days) {
     });
     tb.appendChild(tr);
   });
+}
+
+// Dry member color — inverted scale, higher dry count = more saturated blue
+function dryClass(pct) {
+  const t = Math.round(pct / 100 * 16);
+  return `dry${Math.min(t, 16)}`;
+}
+
+// Trace member color — neutral gray scale, capped at trace8
+function traceClass(pct) {
+  const t = Math.round(pct / 100 * 8);
+  return `trace${Math.min(t, 8)}`;
 }
 
 function buildRainTable(days) {
@@ -1088,23 +1207,52 @@ function buildRainTable(days) {
   sigDiv.innerHTML = `<td colspan="${days.length+1}">Rain Signal — ensemble member counts</td>`;
   tb.appendChild(sigDiv);
 
-  // Wet members (>0.01")
+  // Dry members (exactly 0.00")
+  const trDry = document.createElement('tr');
+  trDry.innerHTML = '<td>Dry members (0.00")</td>';
+  days.forEach(d => {
+    const pct = Math.round(d.dryCount / d.totalMembers * 100);
+    trDry.innerHTML += `<td class="${dryClass(pct)}">${d.dryCount}/${d.totalMembers} (${pct}%)</td>`;
+  });
+  tb.appendChild(trDry);
+
+  // Trace members (>0.00" but <0.01")
+  const trTrace = document.createElement('tr');
+  trTrace.innerHTML = '<td>Trace members (<0.01")</td>';
+  days.forEach(d => {
+    const pct = Math.round(d.traceCount / d.totalMembers * 100);
+    trTrace.innerHTML += `<td class="${traceClass(pct)}">${d.traceCount}/${d.totalMembers} (${pct}%)</td>`;
+  });
+  tb.appendChild(trTrace);
+
+  // Wet members (≥0.01")
   const trWet = document.createElement('tr');
-  trWet.innerHTML = '<td>Wet members (>0.01")</td>';
+  trWet.innerHTML = '<td>Wet members (≥0.01")</td>';
   days.forEach(d => {
     const pct = Math.round(d.wetPct * 100);
     trWet.innerHTML += `<td class="${gc(pct)}">${d.wetCount}/${d.totalMembers} (${pct}%)</td>`;
   });
   tb.appendChild(trWet);
 
-  // Heavier members (>0.25")
+  // Heavier members (≥0.25")
   const trHeavy = document.createElement('tr');
-  trHeavy.innerHTML = '<td>Heavier members (>0.25")</td>';
+  trHeavy.innerHTML = '<td>Heavier members (≥0.25")</td>';
   days.forEach(d => {
     const pct = Math.round(d.heavyPct * 100);
     trHeavy.innerHTML += `<td class="${gc(pct)}">${d.heavyCount}/${d.totalMembers} (${pct}%)</td>`;
   });
   tb.appendChild(trHeavy);
+
+  // Sanity check — dry + trace + wet = total
+  const trCheck = document.createElement('tr');
+  trCheck.innerHTML = '<td style="font-size:0.65rem;font-style:italic;color:var(--muted)">∑ dry + trace + wet</td>';
+  days.forEach(d => {
+    const sum = d.dryCount + d.traceCount + d.wetCount;
+    const ok  = sum === d.totalMembers;
+    trCheck.innerHTML += `<td style="font-size:0.72rem;font-family:'Share Tech Mono',monospace;
+      color:${ok ? '#2a6040' : '#883020'};background:#0a1420">${sum}/${d.totalMembers}${ok ? ' ✓' : ' !'}</td>`;
+  });
+  tb.appendChild(trCheck);
 
   // ── Ensemble Amounts section ──────────────────────────────────────────────
   const amtDiv = document.createElement('tr');
