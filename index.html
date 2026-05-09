@@ -6,6 +6,7 @@
 <title>KPMP Forecast Probabilities — Pompano Weather</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
     --bg:        #0a0e14;
@@ -353,7 +354,88 @@
     color:#ff8888; font-size:0.85rem; max-width:640px; line-height:1.6;
   }
 
-  footer {
+  /* ── Precipitation Histogram ── */
+  .hist-panel {
+    margin-top: 16px;
+    background: #0a1620;
+    border: 1px solid #1a3050;
+    border-radius: 10px;
+    padding: 14px 16px 12px;
+  }
+
+  .hist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .hist-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #40d090;
+  }
+
+  .hist-day-btns {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .hist-day-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #1a3a50;
+    background: #0d1a28;
+    color: #5a8aaa;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .hist-day-btn:hover {
+    border-color: #2a6080;
+    color: #88aacc;
+    background: #0f2030;
+  }
+
+  .hist-day-btn.active {
+    border-color: #40d090;
+    color: #40d090;
+    background: #0a2820;
+  }
+
+  .hist-chart-wrap {
+    position: relative;
+    height: 200px;
+    width: 100%;
+  }
+
+  .hist-stats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+
+  .hist-stats span strong {
+    color: #88aacc;
+  }
+
+  .hist-stats .stat-dry   { color: #60a8d8; }
+  .hist-stats .stat-mean  { color: #40d090; }
+  .hist-stats .stat-p90   { color: #80e0b0; }
+  .hist-stats .stat-max   { color: #5a8878; font-style: italic; }
     margin-top:8px; font-size:0.68rem;
     color:#2a4060; text-align:center; line-height:1.8;
   }
@@ -640,6 +722,18 @@
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg14)"></span>80–89%</span>
     <span class="legend-item"><span class="legend-swatch" style="background:var(--hg16)"></span>≥90%</span>
     <span style="font-size:0.65rem;color:var(--muted);margin-left:6px">· Amount rows colored by inches</span>
+  </div>
+
+  <!-- ── Precipitation Histogram ── -->
+  <div class="hist-panel" id="histPanel">
+    <div class="hist-header">
+      <span class="hist-title">📊 Member Distribution</span>
+      <div class="hist-day-btns" id="histDayBtns"></div>
+    </div>
+    <div class="hist-chart-wrap">
+      <canvas id="precipHistChart"></canvas>
+    </div>
+    <div class="hist-stats" id="histStats"></div>
   </div>
 </div>
 
@@ -956,6 +1050,7 @@ function processData(data) {
         precipP50:  pctile(precipArr, 50),
         precipP90:  pctile(precipArr, 90),
         precipMax:  precipArr.length ? Math.max(...precipArr) : null,
+        precipMean: precipArr.length ? precipArr.reduce((s,v) => s+v, 0) / precipArr.length : null,
         gustProbs: GUST_THRESHOLDS.map(thresh =>
           gustArr.length
             ? Math.round(gustArr.filter(v => v >= thresh).length / gustArr.length * 100)
@@ -1134,6 +1229,221 @@ function buildDewTable(days) {
     });
     tb.appendChild(tr);
   });
+}
+
+// ── Precipitation Histogram ──────────────────────────────────────────────────
+// Bins matching StormVista / Capitol Weather Gang style
+const HIST_BINS = [
+  { label: '0.00"',       min: 0,     max: 0,     exact: true  },
+  { label: '<0.01"',      min: 0,     max: 0.01,  exact: false },
+  { label: '0.01–0.1"',  min: 0.01,  max: 0.10,  exact: false },
+  { label: '0.1–0.25"',  min: 0.10,  max: 0.25,  exact: false },
+  { label: '0.25–0.5"',  min: 0.25,  max: 0.50,  exact: false },
+  { label: '0.5–1"',     min: 0.50,  max: 1.00,  exact: false },
+  { label: '1–2"',       min: 1.00,  max: 2.00,  exact: false },
+  { label: '2–4"',       min: 2.00,  max: 4.00,  exact: false },
+  { label: '≥4"',        min: 4.00,  max: Infinity, exact: false },
+];
+
+// Green color ramp matching the StormVista style — light for dry/trace, dark for heavy
+const HIST_COLORS = [
+  '#1a3530',  // 0.00" — very dark (dry)
+  '#1a4030',  // <0.01" trace
+  '#1a6040',  // 0.01–0.1
+  '#208050',  // 0.1–0.25
+  '#28a060',  // 0.25–0.5  ← peak activity zone
+  '#30c070',  // 0.5–1
+  '#20a858',  // 1–2
+  '#188040',  // 2–4
+  '#106030',  // ≥4 — dark heavy
+];
+
+// Mean line color
+const HIST_MEAN_COLOR = '#ffffff';
+
+let precipChart = null;
+let histDays    = [];
+let histDayIdx  = 0;
+
+function buildHistogram(days) {
+  histDays = days;
+
+  // Build day selector buttons
+  const btnWrap = document.getElementById('histDayBtns');
+  btnWrap.innerHTML = '';
+  days.forEach((d, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'hist-day-btn' + (i === 0 ? ' active' : '');
+    const dn = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'short'});
+    const [,m,day] = d.date.split('-');
+    btn.textContent = `${dn} ${m}/${day}`;
+    btn.dataset.idx = i;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.hist-day-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderHistogram(parseInt(btn.dataset.idx));
+    });
+    btnWrap.appendChild(btn);
+  });
+
+  renderHistogram(0);
+}
+
+function renderHistogram(dayIdx) {
+  histDayIdx = dayIdx;
+  const d = histDays[dayIdx];
+  const arr = d.precipArr || [];
+  const total = arr.length;
+  if (!total) return;
+
+  // Bin the members
+  const counts = HIST_BINS.map(bin => {
+    if (bin.exact) return arr.filter(v => v === bin.min).length;
+    return arr.filter(v => v >= bin.min && v < bin.max).length;
+  });
+
+  // Percentages
+  const pcts = counts.map(c => total > 0 ? Math.round(c / total * 100) : 0);
+
+  // Stats
+  const mean   = arr.reduce((s,v) => s+v, 0) / total;
+  const p90    = d.precipP90 ?? 0;
+  const maxVal = d.precipMax ?? 0;
+  const dryPct = Math.round(d.dryCount / total * 100);
+
+  // Find which bin the mean falls in (for annotation)
+  const meanBinIdx = HIST_BINS.findIndex((bin, i) => {
+    if (bin.exact) return mean === 0;
+    return mean >= bin.min && mean < bin.max;
+  });
+
+  // Destroy previous chart instance
+  if (precipChart) { precipChart.destroy(); precipChart = null; }
+
+  const ctx = document.getElementById('precipHistChart').getContext('2d');
+
+  // Build mean line annotation — vertical line at mean bin
+  const meanLabel = mean < 0.005 ? '0.00"' : mean.toFixed(2) + '"';
+
+  precipChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: HIST_BINS.map(b => b.label),
+      datasets: [{
+        data: pcts,
+        backgroundColor: HIST_COLORS,
+        borderColor: HIST_COLORS.map(c => c),
+        borderWidth: 1,
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 250 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => HIST_BINS[items[0].dataIndex].label,
+            label: (item) => {
+              const cnt = counts[item.dataIndex];
+              return ` ${item.raw}%  (${cnt}/${total} members)`;
+            }
+          },
+          backgroundColor: '#0d1a2a',
+          borderColor: '#1a3a50',
+          borderWidth: 1,
+          titleColor: '#88aacc',
+          bodyColor: '#c8d8e8',
+          titleFont: { family: 'Share Tech Mono', size: 11 },
+          bodyFont:  { family: 'Share Tech Mono', size: 11 },
+        },
+        // Vertical mean line via annotation-style plugin workaround
+        // We use afterDraw to draw it manually since annotation plugin not loaded
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: {
+            color: '#5a7898',
+            font: { family: 'Share Tech Mono', size: 10 },
+            maxRotation: 30,
+          },
+          border: { color: '#1a3050' },
+        },
+        y: {
+          title: {
+            display: true,
+            text: '% of Members',
+            color: '#4a6880',
+            font: { family: 'Share Tech Mono', size: 10 },
+          },
+          grid: {
+            color: (ctx) => {
+              // Alternating bands like StormVista
+              return ctx.tick.value % 20 === 0
+                ? 'rgba(255,255,255,0.08)'
+                : 'rgba(255,255,255,0.03)';
+            }
+          },
+          ticks: {
+            color: '#5a7898',
+            font: { family: 'Share Tech Mono', size: 10 },
+            callback: v => v + '%',
+            stepSize: 10,
+          },
+          border: { color: '#1a3050' },
+          min: 0,
+          max: Math.max(Math.ceil(Math.max(...pcts) / 10) * 10 + 10, 30),
+        }
+      }
+    },
+    plugins: [{
+      // Draw mean line manually after chart renders
+      id: 'meanLine',
+      afterDraw(chart) {
+        if (meanBinIdx < 0) return;
+        const { ctx, chartArea, scales } = chart;
+        const meta = chart.getDatasetMeta(0);
+        if (!meta.data[meanBinIdx]) return;
+
+        const bar  = meta.data[meanBinIdx];
+        const x    = bar.x;
+        const top  = chartArea.top;
+        const bot  = chartArea.bottom;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bot);
+        ctx.strokeStyle = HIST_MEAN_COLOR;
+        ctx.lineWidth   = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.stroke();
+
+        // Label above the line
+        ctx.fillStyle = HIST_MEAN_COLOR;
+        ctx.font = '10px Share Tech Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Mean', x, top - 4);
+        ctx.fillText(meanLabel, x, top + 12);
+        ctx.restore();
+      }
+    }]
+  });
+
+  // Update stats row
+  const statsEl = document.getElementById('histStats');
+  const dn = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US',
+    {weekday:'long', month:'short', day:'numeric'});
+  statsEl.innerHTML = `
+    <span><strong>${dn}</strong> · ${total} members</span>
+    <span class="stat-dry">Dry (0.00"): <strong>${dryPct}%</strong></span>
+    <span class="stat-mean">Mean: <strong>${mean < 0.005 ? '0.00"' : mean.toFixed(2) + '"'}</strong></span>
+    <span class="stat-p90">90th pct: <strong>${p90 < 0.005 ? '0.00"' : p90.toFixed(2) + '"'}</strong></span>
+    <span class="stat-max">Wettest member: <strong>${maxVal < 0.005 ? '0.00"' : maxVal.toFixed(2) + '"'}</strong></span>
+  `;
 }
 
 // Dry member color — inverted scale, higher dry count = more saturated blue
@@ -1408,6 +1718,7 @@ async function init() {
     buildDewTable(days);
     buildRainTable(days);
     buildWindTable(days);
+    buildHistogram(days);
 
     // Console debug
     console.table(days.map(d => ({
