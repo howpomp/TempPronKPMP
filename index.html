@@ -775,6 +775,17 @@ function detectAndConvert(arr) {
   return arr.map(v => v == null ? null : toF(v));
 }
 
+// ── Model group classifier ────────────────────────────────────────────────
+// Maps an Open-Meteo precipitation_sum_ key (lowercased) to GFS/ECMWF/ICON/GEM.
+// Console debug output on first load shows all keys so we can verify matching.
+function classifyModelKey(kl) {
+  if (kl.includes('gfs') || kl.includes('ncep') || kl.includes('gefs')) return 'GFS';
+  if (kl.includes('ecmwf') || kl.includes('ifs'))  return 'ECMWF';
+  if (kl.includes('icon'))  return 'ICON';
+  if (kl.includes('gem') || kl.includes('gdps') || kl.includes('reps')) return 'GEM';
+  return null; // unmatched — will appear in console warning
+}
+
 function processData(data) {
   if (!data.daily) throw new Error('No daily data returned from Open-Meteo.');
   const dates = data.daily.time;
@@ -784,6 +795,21 @@ function processData(data) {
   const precipKeys = Object.keys(data.daily).filter(k => k.startsWith('precipitation_sum_'));
   const gustKeys   = Object.keys(data.daily).filter(k => k.startsWith('wind_gusts_10m_max_'));
   if (!maxKeys.length) throw new Error('No ensemble temperature_2m_max data returned.');
+
+  // ── DEBUG: Log all precipKeys and their classification on every load ──
+  console.log('[ModelMeans] All precipitation_sum_ keys:', precipKeys);
+  const classCheck = {};
+  precipKeys.forEach(k => {
+    const group = classifyModelKey(k.toLowerCase()) ?? 'UNMATCHED';
+    if (!classCheck[group]) classCheck[group] = [];
+    classCheck[group].push(k);
+  });
+  console.log('[ModelMeans] Classification result:', classCheck);
+  if (classCheck['UNMATCHED']?.length) {
+    console.warn('[ModelMeans] ⚠️ UNMATCHED keys — update classifyModelKey():', classCheck['UNMATCHED']);
+  }
+  // ── END DEBUG ─────────────────────────────────────────────────────────
+
   let convertedCount = 0;
   const converted = {};
   [...maxKeys, ...minKeys, ...dewKeys].forEach(k => {
@@ -799,6 +825,7 @@ function processData(data) {
   gustKeys.forEach(k => {
     converted[k] = (data.daily[k] || []).map(v => v == null ? null : v * KMH_TO_MPH);
   });
+
   return {
     memberCount: maxKeys.length,
     unitLabel: convertedCount > 0 ? `${convertedCount} keys C→F` : '°F native',
@@ -846,6 +873,23 @@ function processData(data) {
       const traceArr = precipArr.filter(v => v > 0 && v < 0.01);
       const dryCount   = dryArr.length;
       const traceCount = traceArr.length;
+
+      // ── Per-model group means ────────────────────────────────────────
+      const groups = { GFS: [], ECMWF: [], ICON: [], GEM: [] };
+      precipKeys.forEach(k => {
+        const v = converted[k]?.[di];
+        if (v == null) return;
+        const group = classifyModelKey(k.toLowerCase());
+        if (group) groups[group].push(v);
+      });
+      const groupMean = arr => arr.length ? arr.reduce((s,v) => s+v, 0) / arr.length : null;
+      const modelMeans = {
+        GFS:   groupMean(groups.GFS),
+        ECMWF: groupMean(groups.ECMWF),
+        ICON:  groupMean(groups.ICON),
+        GEM:   groupMean(groups.GEM),
+      };
+
       return {
         date,
         maxP10: pctile(maxArr, 10), maxP50: pctile(maxArr, 50), maxP90: pctile(maxArr, 90),
@@ -869,20 +913,7 @@ function processData(data) {
         precipP90:  pctile(precipArr, 90),
         precipMax:  precipArr.length ? Math.max(...precipArr) : null,
         precipMean: precipArr.length ? precipArr.reduce((s,v) => s+v, 0) / precipArr.length : null,
-        // ── Per-model group means (PATCH 1) ──────────────────────────────────
-        modelMeans: (function() {
-          const groups = { GFS: [], ECMWF: [], ICON: [], GEM: [] };
-          precipKeys.forEach(k => {
-            const v = converted[k]?.[di];
-            if (v == null) return;
-            if      (k.includes('ncep_gefs') || k.includes('gfs')) groups.GFS.push(v);
-            else if (k.includes('ecmwf'))  groups.ECMWF.push(v);
-            else if (k.includes('icon'))   groups.ICON.push(v);
-            else if (k.includes('gem'))    groups.GEM.push(v);
-          });
-          const mean = arr => arr.length ? arr.reduce((s,v) => s+v, 0) / arr.length : null;
-          return { GFS: mean(groups.GFS), ECMWF: mean(groups.ECMWF), ICON: mean(groups.ICON), GEM: mean(groups.GEM) };
-        })(),
+        modelMeans,
         gustProbs: GUST_THRESHOLDS.map(thresh =>
           gustArr.length
             ? Math.round(gustArr.filter(v => v >= thresh).length / gustArr.length * 100)
@@ -1047,7 +1078,7 @@ const HIST_BINS = [
   { label: '0.5–1"',     min: 0.50,  max: 1.00,  exact: false },
   { label: '1–2"',       min: 1.00,  max: 2.00,  exact: false },
   { label: '2–4"',       min: 2.00,  max: 4.00,  exact: false },
-  { label: '≥4"',        min: 4.00,  max: Infinity, exact: false },
+  { label: '>=4"',       min: 4.00,  max: Infinity, exact: false },
 ];
 const HIST_COLORS = [
   '#1a3530','#1a4030','#1a6040','#208050','#28a060',
@@ -1264,7 +1295,7 @@ function buildRainTable(days) {
   tb.appendChild(trTrace);
 
   const trWet = document.createElement('tr');
-  trWet.innerHTML = '<td>Wet members (≥0.01")</td>';
+  trWet.innerHTML = '<td>Wet members (>=0.01")</td>';
   days.forEach(d => {
     const pct = Math.round(d.wetPct * 100);
     trWet.innerHTML += `<td class="${gc(pct)}">${d.wetCount}/${d.totalMembers} (${pct}%)</td>`;
@@ -1272,7 +1303,7 @@ function buildRainTable(days) {
   tb.appendChild(trWet);
 
   const trHeavy = document.createElement('tr');
-  trHeavy.innerHTML = '<td>Heavier members (≥0.25")</td>';
+  trHeavy.innerHTML = '<td>Heavier members (>=0.25")</td>';
   days.forEach(d => {
     const pct = Math.round(d.heavyPct * 100);
     trHeavy.innerHTML += `<td class="${gc(pct)}">${d.heavyCount}/${d.totalMembers} (${pct}%)</td>`;
@@ -1280,12 +1311,12 @@ function buildRainTable(days) {
   tb.appendChild(trHeavy);
 
   const trCheck = document.createElement('tr');
-  trCheck.innerHTML = '<td style="font-size:0.65rem;font-style:italic;color:var(--muted)">∑ dry + trace + wet</td>';
+  trCheck.innerHTML = '<td style="font-size:0.65rem;font-style:italic;color:var(--muted)">sum dry + trace + wet</td>';
   days.forEach(d => {
     const sum = d.dryCount + d.traceCount + d.wetCount;
     const ok  = sum === d.totalMembers;
     trCheck.innerHTML += `<td style="font-size:0.72rem;font-family:'Share Tech Mono',monospace;
-      color:${ok ? '#2a6040' : '#883020'};background:#0a1420">${sum}/${d.totalMembers}${ok ? ' ✓' : ' !'}</td>`;
+      color:${ok ? '#2a6040' : '#883020'};background:#0a1420">${sum}/${d.totalMembers}${ok ? ' ok' : ' !'}</td>`;
   });
   tb.appendChild(trCheck);
 
@@ -1309,7 +1340,7 @@ function buildRainTable(days) {
   tb.appendChild(trP90);
 
   const trSig = document.createElement('tr');
-  trSig.innerHTML = '<td>3σ upper bound <span style="font-size:0.65em;color:var(--muted)">(wet mbrs)</span></td>';
+  trSig.innerHTML = '<td>3-sigma upper bound <span style="font-size:0.65em;color:var(--muted)">(wet mbrs)</span></td>';
   days.forEach(d => {
     if (d.sigma3 == null) {
       const note = d.wetSigmaNote || 'insufficient wet members';
@@ -1320,7 +1351,6 @@ function buildRainTable(days) {
   });
   tb.appendChild(trSig);
 
-  // Wettest member — de-emphasized outlier row
   const trMax = document.createElement('tr');
   trMax.className = 'outlier-row';
   trMax.innerHTML = '<td>Wettest member <span style="font-size:0.65em;color:var(--muted)">(outlier)</span></td>';
@@ -1329,7 +1359,7 @@ function buildRainTable(days) {
   });
   tb.appendChild(trMax);
 
-  // ── Model Group Means section (PATCH 2) ───────────────────────────────────
+  // ── Model Group Means ────────────────────────────────────────────────
   const modelDiv = document.createElement('tr');
   modelDiv.className = 'divider';
   modelDiv.innerHTML = `<td colspan="${days.length+1}">Model group means</td>`;
@@ -1340,7 +1370,10 @@ function buildRainTable(days) {
     trModel.innerHTML = `<td>${model} mean</td>`;
     days.forEach(d => {
       const v = d.modelMeans?.[model];
-      if (v == null) { trModel.innerHTML += '<td class="g0" style="color:var(--muted);font-size:0.75rem">n/a</td>'; return; }
+      if (v == null) {
+        trModel.innerHTML += '<td class="g0" style="color:var(--muted);font-size:0.75rem">n/a</td>';
+        return;
+      }
       trModel.innerHTML += `<td class="${precipAmtClass(v)}">${fmtIn(v)}</td>`;
     });
     tb.appendChild(trModel);
@@ -1353,7 +1386,7 @@ function buildRainTable(days) {
 
   PRECIP_THRESHOLDS.forEach((thresh, idx) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>≥ ${thresh.toFixed(2)}"</td>`;
+    tr.innerHTML = `<td>>= ${thresh.toFixed(2)}"</td>`;
     days.forEach(d => {
       const p = d.precipProbs[idx];
       if (p == null) { tr.innerHTML += '<td class="g0">—</td>'; return; }
@@ -1366,7 +1399,7 @@ function buildRainTable(days) {
   if (hasSigmaNote) {
     const fnRow = document.createElement('tr');
     fnRow.innerHTML = `<td colspan="${days.length+1}" style="font-size:0.65rem;color:var(--muted);padding:4px 16px;background:var(--panel);text-align:left;height:auto">
-      * 3σ requires ≥15 wet members to be statistically meaningful. n/a shown when fewer wet members exist.
+      * 3-sigma requires 15+ wet members to be statistically meaningful. n/a shown when fewer wet members exist.
     </td>`;
     tb.appendChild(fnRow);
   }
@@ -1381,10 +1414,10 @@ function buildWindTable(days) {
   GUST_THRESHOLDS.forEach((thresh, idx) => {
     const tr = document.createElement('tr');
     let label = '';
-    if (thresh >= 40) label = ' 🚨';
-    else if (thresh >= 35) label = ' ⚠️';
-    else if (thresh >= 25) label = ' 🌬️';
-    tr.innerHTML = `<td>≥ ${thresh} mph${label}</td>`;
+    if (thresh >= 40) label = ' warning';
+    else if (thresh >= 35) label = ' caution';
+    else if (thresh >= 25) label = ' breezy';
+    tr.innerHTML = `<td>>= ${thresh} mph${label}</td>`;
     days.forEach(d => {
       const p = d.gustProbs[idx];
       if (p == null) { tr.innerHTML += '<td class="w0">—</td>'; return; }
@@ -1434,13 +1467,13 @@ function setStatus(state, text, time='') {
 function showError(msg) {
   const el = document.getElementById('error-msg');
   el.style.display='block';
-  el.innerHTML=`<strong>⚠ Data fetch failed</strong><br>${msg}<br><br>Will retry on next refresh.`;
+  el.innerHTML=`<strong>Data fetch failed</strong><br>${msg}<br><br>Will retry on next refresh.`;
   setStatus('error','Fetch failed');
 }
 
 async function init() {
   document.getElementById('error-msg').style.display='none';
-  setStatus('','Loading…');
+  setStatus('','Loading...');
   try {
     const raw = await fetchEnsemble();
     const {days, memberCount, unitLabel} = processData(raw);
@@ -1452,8 +1485,8 @@ async function init() {
     buildHistogram(days);
     console.table(days.map(d => ({
       date: d.date,
-      'High p50 (°F)': d._maxMedian?.toFixed(1),
-      'Low p50 (°F)':  d._minMedian?.toFixed(1),
+      'High p50 (F)': d._maxMedian?.toFixed(1),
+      'Low p50 (F)':  d._minMedian?.toFixed(1),
       'maxP10': d.maxP10?.toFixed(1), 'maxP90': d.maxP90?.toFixed(1),
       'Gust p50 (mph)': d.gustP50?.toFixed(1),
     })));
@@ -1478,7 +1511,7 @@ async function init() {
         familyCounts[family] = (familyCounts[family] || 0) + 1;
       });
     const modelSummary = Object.entries(familyCounts)
-      .map(([name, count]) => `${name}${count > 1 ? ` ×${count}` : ''}`)
+      .map(([name, count]) => `${name}${count > 1 ? ` x${count}` : ''}`)
       .join(' · ');
     const now = new Date().toLocaleString('en-US',{
       month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZoneName:'short'
@@ -1490,9 +1523,9 @@ async function init() {
     const anchorDate = raw.daily?.time?.[0] ?? '—';
     const genMs = raw.generationtime_ms;
     const genStr = genMs ? `${(genMs/1000).toFixed(2)}s` : 'n/a';
-    document.getElementById('ts-fetched').textContent  = `🕐 Fetched: ${now}`;
-    document.getElementById('ts-anchor').textContent   = `📅 Forecast from: ${anchorDate}`;
-    document.getElementById('ts-gentime').textContent  = `⚙️ API gen time: ${genStr}`;
+    document.getElementById('ts-fetched').textContent  = `Fetched: ${now}`;
+    document.getElementById('ts-anchor').textContent   = `Forecast from: ${anchorDate}`;
+    document.getElementById('ts-gentime').textContent  = `API gen time: ${genStr}`;
     document.getElementById('ts-note').textContent     = 'Individual model run times not available from ensemble endpoint';
     document.getElementById('timestampBlock').style.display = 'block';
   } catch(err) {
