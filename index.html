@@ -476,7 +476,8 @@
   <strong>Data:</strong> Open-Meteo ensemble API (GFS, ECMWF, ICON, GEM) ·
   Probabilities from ensemble spread via normal CDF fit to p10/p50/p90.
   High: ≥75–100°F · Low: ≤60–85°F · Dew point: ≥60–78°F · Precip: PoP + ¼" thresholds · Wind gusts: ≥15–40 mph.
-  2°F / ¼" / 5 mph increments · 17-tier color scale · Refreshes every 15 min.
+  2°F / ¼" / 5 mph increments · 17-tier color scale · Refreshes every 15 min. ·
+  <span style="color:#3a5060">Build 20260613.002</span>
 </div>
 
 <div id="loading"><div class="spinner"></div>Fetching ensemble forecast data…</div>
@@ -775,16 +776,7 @@ function detectAndConvert(arr) {
   return arr.map(v => v == null ? null : toF(v));
 }
 
-// ── Model group classifier ────────────────────────────────────────────────
-// Maps an Open-Meteo precipitation_sum_ key (lowercased) to GFS/ECMWF/ICON/GEM.
-// Console debug output on first load shows all keys so we can verify matching.
-function classifyModelKey(kl) {
-  if (kl.includes('gfs') || kl.includes('ncep') || kl.includes('gefs')) return 'GFS';
-  if (kl.includes('ecmwf') || kl.includes('ifs'))  return 'ECMWF';
-  if (kl.includes('icon'))  return 'ICON';
-  if (kl.includes('gem') || kl.includes('gdps') || kl.includes('reps')) return 'GEM';
-  return null; // unmatched — will appear in console warning
-}
+
 
 function processData(data) {
   if (!data.daily) throw new Error('No daily data returned from Open-Meteo.');
@@ -796,19 +788,7 @@ function processData(data) {
   const gustKeys   = Object.keys(data.daily).filter(k => k.startsWith('wind_gusts_10m_max_'));
   if (!maxKeys.length) throw new Error('No ensemble temperature_2m_max data returned.');
 
-  // ── DEBUG: Log all precipKeys and their classification on every load ──
-  console.log('[ModelMeans] All precipitation_sum_ keys:', precipKeys);
-  const classCheck = {};
-  precipKeys.forEach(k => {
-    const group = classifyModelKey(k.toLowerCase()) ?? 'UNMATCHED';
-    if (!classCheck[group]) classCheck[group] = [];
-    classCheck[group].push(k);
-  });
-  console.log('[ModelMeans] Classification result:', classCheck);
-  if (classCheck['UNMATCHED']?.length) {
-    console.warn('[ModelMeans] ⚠️ UNMATCHED keys — update classifyModelKey():', classCheck['UNMATCHED']);
-  }
-  // ── END DEBUG ─────────────────────────────────────────────────────────
+
 
   let convertedCount = 0;
   const converted = {};
@@ -874,22 +854,6 @@ function processData(data) {
       const dryCount   = dryArr.length;
       const traceCount = traceArr.length;
 
-      // ── Per-model group means ────────────────────────────────────────
-      const groups = { GFS: [], ECMWF: [], ICON: [], GEM: [] };
-      precipKeys.forEach(k => {
-        const v = converted[k]?.[di];
-        if (v == null) return;
-        const group = classifyModelKey(k.toLowerCase());
-        if (group) groups[group].push(v);
-      });
-      const groupMean = arr => arr.length ? arr.reduce((s,v) => s+v, 0) / arr.length : null;
-      const modelMeans = {
-        GFS:   groupMean(groups.GFS),
-        ECMWF: groupMean(groups.ECMWF),
-        ICON:  groupMean(groups.ICON),
-        GEM:   groupMean(groups.GEM),
-      };
-
       return {
         date,
         maxP10: pctile(maxArr, 10), maxP50: pctile(maxArr, 50), maxP90: pctile(maxArr, 90),
@@ -913,7 +877,6 @@ function processData(data) {
         precipP90:  pctile(precipArr, 90),
         precipMax:  precipArr.length ? Math.max(...precipArr) : null,
         precipMean: precipArr.length ? precipArr.reduce((s,v) => s+v, 0) / precipArr.length : null,
-        modelMeans,
         gustProbs: GUST_THRESHOLDS.map(thresh =>
           gustArr.length
             ? Math.round(gustArr.filter(v => v >= thresh).length / gustArr.length * 100)
@@ -1358,26 +1321,6 @@ function buildRainTable(days) {
     trMax.innerHTML += `<td class="${precipAmtClass(d.precipMax)}">${fmtIn(d.precipMax)}</td>`;
   });
   tb.appendChild(trMax);
-
-  // ── Model Group Means ────────────────────────────────────────────────
-  const modelDiv = document.createElement('tr');
-  modelDiv.className = 'divider';
-  modelDiv.innerHTML = `<td colspan="${days.length+1}">Model group means</td>`;
-  tb.appendChild(modelDiv);
-
-  ['GFS', 'ECMWF', 'ICON', 'GEM'].forEach(model => {
-    const trModel = document.createElement('tr');
-    trModel.innerHTML = `<td>${model} mean</td>`;
-    days.forEach(d => {
-      const v = d.modelMeans?.[model];
-      if (v == null) {
-        trModel.innerHTML += '<td class="g0" style="color:var(--muted);font-size:0.75rem">n/a</td>';
-        return;
-      }
-      trModel.innerHTML += `<td class="${precipAmtClass(v)}">${fmtIn(v)}</td>`;
-    });
-    tb.appendChild(trModel);
-  });
 
   const excDiv = document.createElement('tr');
   excDiv.className = 'divider';
